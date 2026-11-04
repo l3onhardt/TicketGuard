@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .entities import load_lexicon
 from .ingest import blocks_to_text, parse_dist1, read_docx, read_docx_notes, read_xlsx, split_scenarios
+from .synth import generate
 from .templates import build_template
 
 
@@ -57,6 +58,18 @@ def cmd_templates(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_synth(args: argparse.Namespace) -> int:
+    chunks = split_scenarios(Path(args.src).read_text(encoding="utf-8"))
+    samples = generate([c for c in chunks if c.section == "配电第一种工作票典型场景"], args.per, args.seed)
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w", encoding="utf-8") as stream:
+        for sample in samples:
+            stream.write(json.dumps(sample, ensure_ascii=False) + "\n")
+    print(f"已生成 {len(samples)} 个样本 → {out}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     # Windows 控制台默认 GBK，统一成 UTF-8 输出，避免中文乱码
     for stream in (sys.stdout, sys.stderr):
@@ -75,6 +88,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("out", nargs="?", default="data/templates/D1")
     p.add_argument("--lexicon", default="data/rules/lexicon.json")
     p.set_defaults(func=cmd_templates)
+
+    p = sub.add_parser("synth", help="生成带期望标签的合成票面样本")
+    p.add_argument("src")
+    p.add_argument("out", nargs="?", default="data/synthetic/d1.jsonl")
+    p.add_argument("--per", type=int, default=5)
+    p.add_argument("--seed", type=int, default=0)
+    p.set_defaults(func=cmd_synth)
 
     args = ap.parse_args(argv)
     return args.func(args)
