@@ -8,7 +8,7 @@ from .ingest.ticket_parser import parse_dist1
 from .rules.engine import run_rules
 from .schema import Basis, Finding, Severity, Ticket
 
-MATCH_MIN = 0.4
+MATCH_MIN = 0.3  # 见 ADR-0004：0.4 时整栏措施被删的票会跌破阈值而漏检
 CMP_BASIS: Basis = Basis(
     doc="《中国南方电网有限责任公司电力安全工作规程第3部分：配电》（典票库第一章转述）",
     clause="5.3.1",

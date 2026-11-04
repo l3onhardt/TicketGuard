@@ -90,7 +90,7 @@ class ReviewTest(unittest.TestCase):
         ])
 
     def test_low_match_skips_compare(self):
-        self.assertEqual(MATCH_MIN, 0.4)
+        self.assertEqual(MATCH_MIN, 0.3)
         r = review_text(D1_A, RULES, [TB], LEX)
         self.assertEqual([f.rule_id for f in r.findings], ["R-NEW-001", "MATCH-LOW"])
         self.assertEqual(r.findings[1].message, "没有找到足够相似的典票场景（最接近的是 D1-S02，匹配度 0.26），本次未做安全措施比对。")
