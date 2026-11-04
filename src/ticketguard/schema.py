@@ -29,7 +29,8 @@ class Severity(str, Enum):
 class Person:
     name: str
     role: str  # 工作负责人 / 签发人 / 会签人 / 接收人 / 许可人 / 专责监护人 / 工作班成员
-    proxy_for: str | None = None  # “李某（张三代签）”中被代签的人
+    signed_by: str | None = None  # 代签人：“李某（张三代签）”解析为 name=李某, signed_by=张三
+    note: str | None = None  # 身份标注：“赵七（厂家技术人员）”里的“厂家技术人员”
 
 
 @dataclass
