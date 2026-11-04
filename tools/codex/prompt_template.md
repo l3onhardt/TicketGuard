@@ -7,7 +7,9 @@
 - 行数预算是硬上限。如果发现按卡片做必然超预算，立即停下，返回 `over_budget`，说明原因，不要继续写。
 - 不要读取 `data/raw/` 和 `data/interim/` 下的文件。你需要的样例都已经写在卡片和测试里。
 
-完成的标准：`py -I -m unittest discover -s tests` 全部通过，而且没有越出卡片范围。
+沙箱里没有 `py`，运行 Python 一律用 `.venv/py/python.exe -I`（例如 `.venv/py/python.exe -I -m unittest discover -s tests`）。
+
+完成的标准：`.venv/py/python.exe -I -m unittest discover -s tests` 全部通过，而且没有越出卡片范围。
 做到这一步就停下，不要顺手重构，不要添加卡片没要求的功能、参数、日志或兼容层。
 
 最后按 report.schema.json 的格式汇报。

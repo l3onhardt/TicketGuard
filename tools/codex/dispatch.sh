@@ -9,6 +9,13 @@ card=$(ls docs/tasks/"$id"-*.md)
 run=".codex-runs/$id"; mkdir -p "$run"
 effort=$(sed -n 's/^effort:[[:space:]]*//p' "$card" | head -1)
 
+# Windows 沙箱账户读不到用户目录里的 Python，复制一份精简运行时到 .venv/py（git 忽略）
+if [ ! -x .venv/py/python.exe ]; then
+  src=$(py -c "import sys,os;print(os.path.dirname(sys.executable))")
+  mkdir -p .venv/py/Lib && cp "$src"/python.exe "$src"/*.dll .venv/py/ && cp -r "$src/DLLs" .venv/py/
+  (cd "$src/Lib" && tar cf - --exclude=site-packages --exclude=test --exclude=idlelib --exclude=tkinter --exclude=ensurepip --exclude=__pycache__ .) | (cd .venv/py/Lib && tar xf -)
+fi
+
 if [ -z "$review" ]; then
   git rev-parse --verify -q HEAD >/dev/null || { echo "仓库还没有任何提交，先提交基线再派发"; exit 1; }
   [ -z "$(git status --porcelain)" ] || { echo "工作区不干净，先提交或清理再派发"; exit 1; }
