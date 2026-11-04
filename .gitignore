@@ -1,0 +1,32 @@
+# 原始资料与可再生成的中间产物：不入库
+data/raw/
+data/interim/
+data/synthetic/
+
+# 真实数据一律不得出现在仓库；以防万一
+**/*真实*
+**/real/
+
+# Codex 派发记录（提示词、事件流、汇报）
+.codex-runs/
+
+# 模型文件
+models/
+*.gguf
+*.safetensors
+*.onnx
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+build/
+dist/
+*.spec
+*.egg-info/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

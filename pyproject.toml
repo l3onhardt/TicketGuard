@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ticketguard"
+version = "0.0.1"
+description = "配电两票离线智能预审"
+requires-python = ">=3.10"
+dependencies = []  # 核心功能零第三方依赖，见 AGENTS.md 红线 6
+
+[project.scripts]
+ticketguard = "ticketguard.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

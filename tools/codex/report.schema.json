@@ -1,0 +1,25 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "summary", "files_changed", "tests", "deviations", "questions"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["done", "blocked", "over_budget"],
+      "description": "done=验收测试全过且在预算内；blocked=缺信息无法继续；over_budget=按卡片做必然超预算，已停下"
+    },
+    "summary": {"type": "string", "description": "三句话以内：做了什么，关键实现思路"},
+    "files_changed": {"type": "array", "items": {"type": "string"}},
+    "tests": {"type": "string", "description": "运行了哪条测试命令、结果（通过/失败数）"},
+    "deviations": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "任何偏离任务卡的地方（接口、文件、行为），没有就空数组"
+    },
+    "questions": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "需要规划者决定的问题；不要自行假设后继续扩展"
+    }
+  }
+}
