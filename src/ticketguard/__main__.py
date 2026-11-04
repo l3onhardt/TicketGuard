@@ -5,12 +5,15 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import date
 from pathlib import Path
 
 from .entities import load_lexicon
+from .evaluate import evaluate
 from .ingest import blocks_to_text, parse_dist1, read_docx, read_docx_notes, read_xlsx, split_scenarios
+from .rules.engine import load_rules
 from .synth import generate
-from .templates import build_template
+from .templates import build_template, load_templates
 
 
 def cmd_ingest(args: argparse.Namespace) -> int:
@@ -70,6 +73,25 @@ def cmd_synth(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_eval(args: argparse.Namespace) -> int:
+    chunks = split_scenarios(Path(args.src).read_text(encoding="utf-8"))
+    originals = {f"D1-S{int(c.number):02d}": c.text for c in chunks
+                 if c.section == "配电第一种工作票典型场景"}
+    with Path(args.samples).open(encoding="utf-8") as stream:
+        samples = [json.loads(line) for line in stream if line.strip()]
+    report = evaluate(samples, originals, load_rules(args.rules),
+                      load_templates(args.templates), load_lexicon(args.lexicon))
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    for op, stats in report["by_operator"].items():
+        print(f"{op}：样本 {stats['samples']}，场景命中 {stats['top1']}，"
+              f"检出 {stats['detected']}/{stats['expected']}，意外发现 {stats['unexpected']}")
+    print(f"合计：样本 {report['samples']}，检出率 {report['recall']}"
+          f"（95% 置信区间 {report['recall_ci95']}），意外发现 {report['unexpected']} → {out}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     # Windows 控制台默认 GBK，统一成 UTF-8 输出，避免中文乱码
     for stream in (sys.stdout, sys.stderr):
@@ -95,6 +117,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--per", type=int, default=5)
     p.add_argument("--seed", type=int, default=0)
     p.set_defaults(func=cmd_synth)
+
+    p = sub.add_parser("eval", help="评测合成集的检出率、意外发现与场景命中")
+    p.add_argument("src")
+    p.add_argument("samples", nargs="?", default="data/synthetic/d1.jsonl")
+    p.add_argument("--out", default=f"reports/eval-{date.today().isoformat()}.json")
+    p.add_argument("--templates", default="data/templates/D1")
+    p.add_argument("--rules", default="data/rules")
+    p.add_argument("--lexicon", default="data/rules/lexicon.json")
+    p.set_defaults(func=cmd_eval)
 
     args = ap.parse_args(argv)
     return args.func(args)
