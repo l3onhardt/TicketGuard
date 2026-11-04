@@ -1,0 +1,98 @@
+[
+  {
+    "id": "R-CREW-001",
+    "title": "总人数应与工作班人员名单一致",
+    "ticket_types": ["配电第一种工作票"],
+    "check": "crew_count",
+    "params": {},
+    "severity": "error",
+    "message": "“工作负责人及工作班人员总人数”写的是 {actual} 人，按工作负责人加工作班人员名单应为 {expected} 人。",
+    "basis": {
+      "doc": "《中国南方电网有限责任公司电力安全工作规程第3部分：配电》（典票库第一章转述）",
+      "clause": "5.3.1.3",
+      "text": "工作负责人正确完整地填写工作票（含附件）",
+      "source": "2026.9典票库 第一章“两票”相关文件内容说明"
+    },
+    "status": "draft"
+  },
+  {
+    "id": "R-REQ-001",
+    "title": "票面必填栏目不得为空",
+    "ticket_types": ["配电第一种工作票"],
+    "check": "required_field",
+    "params": {"fields": ["number", "plan_start", "plan_end", "crew_size", "outage_scope"]},
+    "severity": "warning",
+    "message": "票面栏目 {field} 未填写或无法识别。",
+    "basis": {
+      "doc": "《中国南方电网有限责任公司电力安全工作规程第3部分：配电》（典票库第一章转述）",
+      "clause": "5.3.1.3",
+      "text": "工作负责人正确完整地填写工作票（含附件）",
+      "source": "2026.9典票库 第一章“两票”相关文件内容说明"
+    },
+    "status": "draft"
+  },
+  {
+    "id": "R-REQ-002",
+    "title": "签发、接收、许可等签名不得缺失",
+    "ticket_types": ["配电第一种工作票"],
+    "check": "role_required",
+    "params": {"roles": ["工作负责人", "签发人", "接收人", "许可人"]},
+    "severity": "warning",
+    "message": "票面上没有找到{role}的签名。",
+    "basis": {
+      "doc": "《中国南方电网有限责任公司电力安全工作规程第3部分：配电》（典票库第一章转述）",
+      "clause": "5.3.1",
+      "text": "工作票所列安全措施正确、完备，由工作负责人、签发人、会签人、工作票接收人、许可人负责。",
+      "source": "2026.9典票库 第一章“两票”相关文件内容说明"
+    },
+    "status": "draft"
+  },
+  {
+    "id": "R-TIME-001",
+    "title": "签发、接收、许可、安全交代的时间应依次先后",
+    "ticket_types": ["配电第一种工作票"],
+    "check": "before",
+    "params": {"chain": ["fields.签发时间", "fields.接收时间", "fields.许可时间", "fields.安全交代时间"], "strict": false},
+    "severity": "error",
+    "message": "{a}（{a_time}）晚于{b}（{b_time}），时间顺序不对。",
+    "basis": {
+      "doc": "《中国南方电网有限责任公司电力安全工作规程第3部分：配电》（典票库第一章转述）",
+      "clause": "5.3.1.3",
+      "text": "工作负责人正确完整地填写工作票（含附件）",
+      "source": "2026.9典票库 第一章“两票”相关文件内容说明"
+    },
+    "status": "draft"
+  },
+  {
+    "id": "R-TIME-002",
+    "title": "计划开始时间应早于计划结束时间",
+    "ticket_types": ["配电第一种工作票"],
+    "check": "before",
+    "params": {"chain": ["plan_start", "plan_end"], "strict": true},
+    "severity": "error",
+    "message": "计划开始时间（{a_time}）不早于计划结束时间（{b_time}）。",
+    "basis": {
+      "doc": "《中国南方电网有限责任公司电力安全工作规程第3部分：配电》（典票库第一章转述）",
+      "clause": "5.3.1.3",
+      "text": "工作负责人正确完整地填写工作票（含附件）",
+      "source": "2026.9典票库 第一章“两票”相关文件内容说明"
+    },
+    "status": "draft"
+  },
+  {
+    "id": "R-NEW-001",
+    "title": "工作班中有新员工或临时作业人员时，提醒确认监护和安全教育",
+    "ticket_types": ["配电第一种工作票", "配电第二种工作票", "紧急抢修工作票", "配电带电作业工作票", "书面布置记录票"],
+    "check": "regex",
+    "params": {"field": "people.note", "pattern": "新员工|实习|临时|厂家|外来|转岗", "must_match": false},
+    "severity": "info",
+    "message": "工作班人员中有“{value}”，请确认已完成安全教育培训，并在监护人员监护下参加指定的工作。",
+    "basis": {
+      "doc": "《中国南方电网有限责任公司电力安全工作规程第3部分：配电》释义",
+      "clause": "4.2.2.4",
+      "text": "新员工、转岗未经考核合格人员、实习人员和临时作业人员，应经过安全教育培训后，方可进入现场，并在监护人员监护下参加指定的工作。",
+      "source": "2026.9典票库 脚注22"
+    },
+    "status": "draft"
+  }
+]
