@@ -11,6 +11,8 @@ from pathlib import Path
 from .entities import load_lexicon
 from .evaluate import evaluate
 from .ingest import blocks_to_text, parse_dist1, read_docx, read_docx_notes, read_xlsx, split_scenarios
+from .report import build_report, render_html
+from .review import review_text
 from .rules.engine import load_rules
 from .synth import generate
 from .templates import build_template, load_templates
@@ -92,6 +94,32 @@ def cmd_eval(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_check(args: argparse.Namespace) -> int:
+    p = Path(args.src)
+    suffix = p.suffix.lower()
+    if suffix == ".docx":
+        text = blocks_to_text(read_docx(p))
+    elif suffix == ".txt":
+        text = p.read_text(encoding="utf-8")
+    else:
+        raise ValueError(f"{p}：只支持 .txt（票面文本）和 .docx")
+    templates = load_templates(args.templates)
+    review = review_text(text, load_rules(args.rules), templates, load_lexicon(args.lexicon))
+    report = build_report(review, templates, p.name)
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    page = out / f"{p.stem}.预审.html"
+    (out / f"{p.stem}.预审.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    page.write_text(render_html(report), encoding="utf-8")
+    top = report["candidates"][0]
+    print(f"工作票 {report['ticket']['number'] or '未填写'}：最接近典票场景 {top['id']}「{top['title']}」（匹配度 {top['score']:.2f}）")
+    print(f"疑似问题 {len(report['findings'])} 条（需人工确认）：")
+    for finding in report["findings"]:
+        print(f"  [{finding['label']}] {finding['message']}")
+    print(f"报告 → {page}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     # Windows 控制台默认 GBK，统一成 UTF-8 输出，避免中文乱码
     for stream in (sys.stdout, sys.stderr):
@@ -126,6 +154,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--rules", default="data/rules")
     p.add_argument("--lexicon", default="data/rules/lexicon.json")
     p.set_defaults(func=cmd_eval)
+
+    p = sub.add_parser("check", help="预审单张工作票并生成报告")
+    p.add_argument("src")
+    p.add_argument("--out", default="reports")
+    p.add_argument("--templates", default="data/templates/D1")
+    p.add_argument("--rules", default="data/rules")
+    p.add_argument("--lexicon", default="data/rules/lexicon.json")
+    p.set_defaults(func=cmd_check)
 
     args = ap.parse_args(argv)
     return args.func(args)

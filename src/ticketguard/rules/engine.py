@@ -24,7 +24,7 @@ def values(ticket: Ticket, path: str) -> list:
 
 
 def _required_field(ticket: Ticket, params: dict) -> list[dict]:
-    return [{"field": path} for path in params["fields"] if not values(ticket, path)]
+    return [{"field": label} for path, label in params["fields"].items() if not values(ticket, path)]
 
 
 def _role_required(ticket: Ticket, params: dict) -> list[dict]:
