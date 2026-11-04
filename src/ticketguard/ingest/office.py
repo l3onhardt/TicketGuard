@@ -15,6 +15,10 @@ from xml.etree import ElementTree as ET
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 S = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 R = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
+_SYM = {
+    ("Wingdings 2", 0x52): "☑", ("Wingdings 2", 0xA3): "□",
+    ("Wingdings", 0xA8): "□", ("Wingdings", 0xFE): "☑",
+}
 
 
 @dataclass
@@ -27,7 +31,16 @@ class Block:
 
 
 def _wtext(el: ET.Element) -> str:
-    return "".join(t.text or "" for t in el.iter(W + "t"))
+    parts: list[str] = []
+    for node in el.iter():
+        if node.tag == W + "t":
+            parts.append(node.text or "")
+        elif node.tag == W + "sym":
+            code = int(node.attrib[W + "char"], 16)
+            if code >= 0xF000:
+                code -= 0xF000
+            parts.append(_SYM.get((node.get(W + "font"), code), ""))
+    return "".join(parts)
 
 
 def _cell_text(tc: ET.Element) -> str:
