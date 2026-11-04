@@ -1,0 +1,34 @@
+{
+  "id": "D1-S09",
+  "ticket_type": "配电第一种工作票",
+  "title": "10kV线路(带电解口)停电施工",
+  "source": {
+    "doc": "2026.9典票库",
+    "section": "配电第一种工作票典型场景",
+    "scenario": "9",
+    "status": ""
+  },
+  "work_task": "更换{线路}弄常支线{杆号}至{杆号}的金具。",
+  "required_measures": [
+    {
+      "id": "D1-S09-M01",
+      "category": "应拉开关刀闸熔断器",
+      "pattern": "{线路}弄常支线{杆号}耐张引流线已解口",
+      "keywords": [
+        "解口"
+      ],
+      "must": true
+    },
+    {
+      "id": "D1-S09-M02",
+      "category": "保留带电设备",
+      "pattern": "邻近带电体要保持足够安全距离",
+      "keywords": [
+        "带电",
+        "安全距离"
+      ],
+      "must": true
+    }
+  ],
+  "status": "draft"
+}

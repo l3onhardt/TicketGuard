@@ -7,7 +7,9 @@ import json
 import sys
 from pathlib import Path
 
-from .ingest import blocks_to_text, read_docx, read_docx_notes, read_xlsx
+from .entities import load_lexicon
+from .ingest import blocks_to_text, parse_dist1, read_docx, read_docx_notes, read_xlsx, split_scenarios
+from .templates import build_template
 
 
 def cmd_ingest(args: argparse.Namespace) -> int:
@@ -39,6 +41,22 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_templates(args: argparse.Namespace) -> int:
+    lexicon = load_lexicon(args.lexicon)
+    chunks = split_scenarios(Path(args.src).read_text(encoding="utf-8"))
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    n = 0
+    for chunk in chunks:
+        if chunk.section == "配电第一种工作票典型场景":
+            template = build_template(chunk, parse_dist1(chunk.text), lexicon)
+            (out / f"{template['id']}.json").write_text(
+                json.dumps(template, ensure_ascii=False, indent=2), encoding="utf-8")
+            n += 1
+    print(f"已生成 {n} 个模板 → {out}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     # Windows 控制台默认 GBK，统一成 UTF-8 输出，避免中文乱码
     for stream in (sys.stdout, sys.stderr):
@@ -51,6 +69,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("src", nargs="?", default="data/raw")
     p.add_argument("out", nargs="?", default="data/interim")
     p.set_defaults(func=cmd_ingest)
+
+    p = sub.add_parser("templates", help="生成第一种票场景模板初稿")
+    p.add_argument("src")
+    p.add_argument("out", nargs="?", default="data/templates/D1")
+    p.add_argument("--lexicon", default="data/rules/lexicon.json")
+    p.set_defaults(func=cmd_templates)
 
     args = ap.parse_args(argv)
     return args.func(args)
