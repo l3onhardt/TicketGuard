@@ -20,9 +20,10 @@
     "title": "票面必填栏目不得为空",
     "ticket_types": ["配电第一种工作票"],
     "check": "required_field",
-    "params": {"fields": ["number", "plan_start", "plan_end", "crew_size", "outage_scope"]},
+    "params": {"fields": {"number": "工作票编号", "plan_start": "计划工作时间（自）", "plan_end": "计划工作时间（至）",
+                          "crew_size": "工作负责人及工作班人员总人数", "outage_scope": "停电设备或线路名称"}},
     "severity": "warning",
-    "message": "票面栏目 {field} 未填写或无法识别。",
+    "message": "票面“{field}”栏未填写或无法识别。",
     "basis": {
       "doc": "《中国南方电网有限责任公司电力安全工作规程第3部分：配电》（典票库第一章转述）",
       "clause": "5.3.1.3",

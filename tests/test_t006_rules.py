@@ -137,7 +137,7 @@ class HitMissTest(unittest.TestCase):
 
     def test_required(self):
         f = run_rules(_edit(_a(), plan_end=None), _rule("R-REQ-001"))
-        self.assertEqual([x.message for x in f], ["票面栏目 plan_end 未填写或无法识别。"])
+        self.assertEqual([x.message for x in f], ["票面“计划工作时间（至）”栏未填写或无法识别。"])
         self.check("R-REQ-001", _edit(_a(), plan_end=None), _a())
 
     def test_roles(self):
