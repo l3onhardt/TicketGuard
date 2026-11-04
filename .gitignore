@@ -3,6 +3,9 @@ data/raw/
 data/interim/
 data/synthetic/
 
+# 评测报告（可再生成）
+reports/
+
 # 真实数据一律不得出现在仓库；以防万一
 **/*真实*
 **/real/
