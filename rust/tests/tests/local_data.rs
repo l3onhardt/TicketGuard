@@ -12,6 +12,7 @@ use std::path::PathBuf;
 use ticketguard::entities::load_lexicon;
 use ticketguard::evaluate::evaluate;
 use ticketguard::ingest::{parse_dist1, split_scenarios};
+use ticketguard::report::{build_report, render_html};
 use ticketguard::review::review_text;
 use ticketguard::rules::{load_rules, run_rules};
 use ticketguard::templates::{build_template, load_templates};
@@ -119,6 +120,34 @@ fn typical_tickets_match_their_own_scenario() {
         let missing: Vec<&str> =
             review.findings.iter().filter(|f| f.rule_id == "CMP-MISSING").map(|f| f.evidence.as_str()).collect();
         assert!(missing.is_empty(), "场景 {} 对照自己的模板却报了漏项：{missing:?}", chunk.number);
+    }
+}
+
+#[test]
+fn typical_tickets_report_no_issue() {
+    // 典票是标准答案：报告的结论不能是“发现疑点”，措施比对那一项必须是“已查，无疑点”，
+    // 而且每张典票都对照到它自己的场景。
+    let Some(local) = local() else { return };
+    let rules = load_rules(&repo_root().join("data/rules")).expect("规则库能加载");
+    let templates = load_templates(&repo_root().join("data/templates/D1")).expect("模板能加载");
+    let lexicon = load_lexicon(&repo_root().join("data/rules/lexicon.json")).expect("词表能加载");
+    for chunk in split_scenarios(&local.body).into_iter().filter(|chunk| chunk.section == SECTION) {
+        let review = review_text(&chunk.text, &rules, &templates, &lexicon).expect("典票能预审");
+        let report = build_report(&review, &templates, "典票.txt");
+        let level = report["verdict"]["level"].as_str().expect("verdict.level 是字符串");
+        assert!(["clear", "notes"].contains(&level), "场景 {} 的结论是 {level}", chunk.number);
+        let measures = report["checklist"]
+            .as_array()
+            .expect("checklist 是数组")
+            .iter()
+            .find(|row| row["name"] == "安全措施（对照典票）")
+            .expect("清单里有安全措施一项");
+        assert_eq!(measures["status"], "checked", "场景 {}", chunk.number);
+        assert_eq!(report["scenario"]["matched"], true, "场景 {}", chunk.number);
+        let label = report["scenario"]["label"].as_str().expect("scenario.label 是字符串");
+        assert!(label.starts_with(&format!("典票场景 {}「", chunk.number)), "场景 {} 对照成了 {label}", chunk.number);
+        let html = render_html(&report);
+        assert!(!html.contains("D1-S") && !html.contains("{线路}"), "场景 {} 的页面露出了内部标识", chunk.number);
     }
 }
 
