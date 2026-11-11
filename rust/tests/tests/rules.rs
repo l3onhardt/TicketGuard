@@ -263,7 +263,7 @@ fn time_chain() {
     let mut hit = a();
     hit.fields.insert("接收时间".to_string(), json!("2099-01-09T09:00"));
     let messages: Vec<String> = run_rules(&hit, &rule("R-TIME-001")).into_iter().map(|f| f.message).collect();
-    assert_eq!(messages, ["签发时间（2099-01-09T11:30）晚于接收时间（2099-01-09T09:00），时间顺序不对。"]);
+    assert_eq!(messages, ["签发时间（2099-01-09 11:30）晚于接收时间（2099-01-09 09:00），时间顺序不对。"]);
     // 接收时间没填时，链条跳过它继续比后面的
     let mut miss = a();
     miss.fields.insert("接收时间".to_string(), Value::Null);

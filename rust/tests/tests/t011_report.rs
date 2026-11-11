@@ -427,6 +427,63 @@ fn checklist_status_has_words_not_only_color() {
 }
 
 #[test]
+fn page_shows_readable_times() {
+    // 审票人不该看到 ISO 的 “T”：2099-01-10T08:30 要显示成 2099-01-10 08:30。
+    let data = snapshot();
+    let html = render_html(&report_for("d1_a", &data));
+    assert!(html.contains("2099-01-10 08:30 至 2099-01-10 17:30"), "票面概况的时间要写成看得懂的样子");
+    assert!(!html.contains("T08:30") && !html.contains("T17:30"));
+
+    // 规则消息里的时间也一样（这条票把接收时间改成了 2000 年）
+    let clock = render_html(&report_for("d1_a_time_swap", &data));
+    assert!(clock.contains("2000-01-01 00:00"), "规则消息里的时间也要去掉 T");
+    assert!(!clock.contains("2000-01-01T00:00"));
+}
+
+#[test]
+fn low_similarity_findings_are_hints_not_issues() {
+    // 对照的场景相似度低，说明可能根本认错了场景。这时候“缺少某类措施”不能当成疑点，
+    // 更不能默认写进打回意见——那是拿一个可能不对的场景去指责这张票。
+    let root = repo_root();
+    let data = Snapshot {
+        rules: load_rules(&root.join("data/rules")).expect("规则库能加载"),
+        templates: load_templates(&root.join("data/templates/D1")).expect("模板能加载"),
+        lexicon: load_lexicon(&root.join("data/rules/lexicon.json")).expect("词表能加载"),
+    };
+    let report = report_for("d1_a_drop_ground", &data);
+    assert_eq!(report["scenario"]["similarity"], "低", "先确认这张编造票在 21 个真模板里确实匹配到了低相似度的场景");
+    assert_eq!(report["verdict"]["level"], "notes");
+    let missing = finding(&report, "CMP-MISSING");
+    assert_eq!(missing["severity"], "info");
+    assert_eq!(missing["label"], "提示");
+    assert_eq!(missing["picked"], false, "相似度低时默认不勾选");
+    assert!(
+        text(missing, "message").contains("相似度低"),
+        "这条缺项要自己说明为什么只是提示：{}",
+        text(missing, "message")
+    );
+    assert!(text(missing, "message").contains("请人工核对"));
+    assert_eq!(report["draft"], "", "没有被勾选的事项，草稿为空");
+    // 相似度中、高的时候，缺项仍然是疑点（用快照模板：0.5373）
+    let own = report_for("d1_a_drop_ground", &snapshot());
+    assert_eq!(own["scenario"]["similarity"], "中");
+    assert_eq!(finding(&own, "CMP-MISSING")["severity"], "warning");
+}
+
+#[test]
+fn work_task_with_one_empty_side_reads_naturally() {
+    // “地点 | 任务”里有一边没写：只显示写了的那一边，不要出现“未填写：补充任务”
+    let data = snapshot();
+    let html = render_html(&report_for("d1_b", &data));
+    assert!(html.contains("<li>补充任务</li>"), "只有任务时就直接显示任务");
+    assert!(!html.contains("未填写：补充任务"));
+    let both = render_html(&report_for("d1_a", &data));
+    assert!(both.contains(
+        "<li>35kV甲站10kV测试线乙支6号杆甲公变台架：（XX分局）35kV甲站10kV测试线配合：更换10kV测试线甲公变。</li>"
+    ));
+}
+
+#[test]
 fn finding_cards_match_the_model() {
     let data = snapshot();
     let mut variants: Vec<(String, Value)> =
