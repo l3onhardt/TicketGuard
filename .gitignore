@@ -28,8 +28,17 @@ dist/
 *.spec
 *.egg-info/
 
+# Rust 构建产物（Cargo.lock 要入库：这是可执行程序，依赖版本必须锁定）
+target/
+
+# 交付文件夹（tg.exe + data/，由 cargo build --release 的产物拼出来，可再生成）
+dist/
+
 # 编辑器 / 系统
 .vscode/
 .idea/
 Thumbs.db
 .DS_Store
+
+# 自带工具链和依赖源码（沙箱构建用，体积大，可重新生成：tools/codex/make-toolchain.sh）
+.toolchain/

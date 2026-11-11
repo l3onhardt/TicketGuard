@@ -1,34 +1,43 @@
-"""任务验收门禁：py -I tools/gate.py T-001
+"""任务验收门禁：py -I tools/gate.py T-011
 
-对照任务卡（docs/tasks/T-xxx-*.md 的头部字段）机械检查 Codex 的产出：
-改动范围、行数预算、受保护文件、禁用写法、依赖、测试。全部通过才进入人工评审。
+对照任务卡（docs/tasks/T-xxx-*.md 的头部字段）机械检查实现方的产出：
+改动范围、行数预算、受保护文件、禁用写法、依赖白名单、格式、静态检查、测试。
+全部通过才进入人工评审。只检查 Rust 代码（archive/ 下的 Python 参考实现不参与）。
 """
 
 from __future__ import annotations
 
 import fnmatch
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# (正则, 说明) —— 只检查 src/ 下新增的代码行
-FORBIDDEN = [
-    (r"except\s*:", "裸 except"),
-    (r"except\s*\(?\s*(Base)?Exception\b", "捕获 Exception 兜底"),
-    (r"^\s*import\s+logging|^\s*from\s+logging\s", "引入 logging（用 print 到 stderr 或直接抛异常）"),
+# Rust：只检查 rust/ticketguard、rust/tg 下新增的代码行
+RUST_FORBIDDEN = [
+    (r"\bunsafe\b", "unsafe"),
+    (r"\b(todo|unimplemented)!\s*\(", "todo!() / unimplemented!()"),
+    (r"\bdbg!\s*\(", "遗留 dbg!()"),
     (r"\b(TODO|FIXME|XXX)\b", "遗留 TODO"),
-    (r"#\s*type:\s*ignore", "type: ignore"),
-    (r"^\s*(import|from)\s+(socket|requests|httpx|aiohttp|urllib\.request|http\.client)\b", "网络库"),
+    (r"\bstd::net\b|\bTcpStream\b|\bTcpListener\b|\bUdpSocket\b", "网络（红线 5：运行时零联网）"),
+    (r"\b(reqwest|hyper|ureq|tokio|async_std|isahc|curl)::", "网络 / 异步库"),
+    (r"\b(log|tracing)::", "日志库（命令行要输出就 println! / eprintln!）"),
+    (r"#!?\[allow\(", "#[allow(...)] 压警告（改代码，不要压警告）"),
 ]
-WARN = [
-    (r"\bisinstance\(", "isinstance（内部数据不需要类型防御）", 3),
-    (r"\bhasattr\(|\bgetattr\([^)]*,[^)]*,", "hasattr / 带默认值的 getattr", 1),
-    (r"\bclass\s+\w+\((ABC|Protocol)\)|@abstractmethod", "新抽象层", 1),
-    (r"^\s*except\b", "try/except 块", 2),
+# 启动外部进程只允许命令行入口用（打开浏览器看报告）
+RUST_FORBIDDEN_IN_CORE = [
+    (r"\bprocess::Command\b|\bCommand::new\b", "核心库不得启动外部进程"),
 ]
+RUST_WARN = [
+    (r"\.unwrap_or_default\(\)|\.unwrap_or\(", "unwrap_or / unwrap_or_default（确认不是静默降级）", 4),
+    (r"\bdyn\s+\w+", "dyn Trait（确认不是多余的抽象层）", 1),
+    (r"\.ok\(\)\s*;|let\s+_\s*=", "丢弃 Result（确认不是吞错误）", 1),
+]
+# 第三方依赖白名单。要新增，先在 docs/decisions/ 写 ADR，再改这里。
+ALLOWED_CRATES = {"ticketguard", "serde", "serde_json", "regex", "fancy-regex", "once_cell"}
 
 
 def sh(*args: str) -> str:
@@ -63,7 +72,54 @@ def added_lines(base: str, path: str) -> list[str]:
         lines = [l[1:] for l in diff.splitlines() if l.startswith("+") and not l.startswith("+++")]
     else:
         lines = (ROOT / path).read_text(encoding="utf-8").splitlines()
-    return [l for l in lines if l.strip() and not l.strip().startswith("#")]
+    comment = "//" if path.endswith(".rs") else "#"
+    return [l for l in lines if l.strip() and not l.strip().startswith(comment)]
+
+
+def scan(path: str, lines: list[str], forbidden: list, warn: list, fails: list[str], warns: list[str]) -> None:
+    text = "\n".join(lines)
+    for pat, why in forbidden:
+        for l in lines:
+            if re.search(pat, l):
+                fails.append(f"{path}：{why} → {l.strip()[:80]}")
+    for pat, why, limit in warn:
+        n = len(re.findall(pat, text, re.M))
+        if n >= limit:
+            warns.append(f"{path}：{why} ×{n}")
+
+
+def crate_names(manifest: Path) -> set[str]:
+    """Cargo.toml 里各个 dependencies 段声明的依赖名。"""
+    names: set[str] = set()
+    section = ""
+    for line in manifest.read_text(encoding="utf-8").splitlines():
+        line = line.split("#", 1)[0].strip()
+        if line.startswith("["):
+            section = line.strip("[]")
+        elif section.endswith("dependencies") and "=" in line:
+            names.add(line.split("=", 1)[0].strip())
+    return names
+
+
+def cargo() -> str | None:
+    found = shutil.which("cargo")
+    if found:
+        return found
+    fallback = Path.home() / ".cargo" / "bin" / "cargo.exe"
+    return str(fallback) if fallback.exists() else None
+
+
+def run_cargo(fails: list[str]) -> None:
+    exe = cargo()
+    if exe is None:
+        fails.append("找不到 cargo，无法运行 Rust 测试（安装 Rust 工具链，或把 ~/.cargo/bin 加进 PATH）")
+        return
+    for label, args in (("cargo fmt --check（先运行 cargo fmt）", ["fmt", "--check"]),
+                        ("cargo test", ["test"]),
+                        ("cargo clippy", ["clippy", "--all-targets", "--", "-D", "warnings"])):
+        done = subprocess.run([exe, *args], cwd=ROOT, capture_output=True, text=True, encoding="utf-8")
+        if done.returncode != 0:
+            fails.append(f"{label} 未通过：\n" + (done.stdout + done.stderr)[-2000:])
 
 
 def main(task_id: str) -> int:
@@ -81,27 +137,23 @@ def main(task_id: str) -> int:
             fails.append(f"越界改动：{f}（不在 allow 列表）")
         if f in protect:
             fails.append(f"改动了受保护文件：{f}")
-        if f == "pyproject.toml":
-            fails.append("改动了 pyproject.toml（不得新增依赖）")
 
     src_added = tests_added = 0
     for f in files:
-        if not f.endswith(".py") or not (ROOT / f).exists():
+        if not f.endswith(".rs") or not (ROOT / f).exists():
             continue
         lines = added_lines(base, f)
-        if f.startswith("src/"):
+        if f.startswith(("rust/ticketguard/", "rust/tg/")):
             src_added += len(lines)
-            text = "\n".join(lines)
-            for pat, why in FORBIDDEN:
-                for l in lines:
-                    if re.search(pat, l):
-                        fails.append(f"{f}：{why} → {l.strip()[:80]}")
-            for pat, why, limit in WARN:
-                n = len(re.findall(pat, text, re.M))
-                if n >= limit:
-                    warns.append(f"{f}：{why} ×{n}")
-        elif f.startswith("tests/"):
+            core_only = RUST_FORBIDDEN_IN_CORE if f.startswith("rust/ticketguard/") else []
+            scan(f, lines, RUST_FORBIDDEN + core_only, RUST_WARN, fails, warns)
+        elif f.startswith("rust/tests/"):
             tests_added += len(lines)
+
+    for manifest in [ROOT / "Cargo.toml", *sorted((ROOT / "rust").glob("*/Cargo.toml"))]:
+        extra = crate_names(manifest) - ALLOWED_CRATES
+        if extra:
+            fails.append(f"{manifest.relative_to(ROOT).as_posix()}：依赖不在白名单（先写 ADR）→ {'、'.join(sorted(extra))}")
 
     budget_src, budget_tests = int(meta.get("budget_src", 0)), int(meta.get("budget_tests", 0))
     if src_added > budget_src:
@@ -109,12 +161,7 @@ def main(task_id: str) -> int:
     if tests_added > budget_tests:
         fails.append(f"tests 新增 {tests_added} 行，超出预算 {budget_tests}")
 
-    test = subprocess.run(
-        [sys.executable, "-I", "-m", "unittest", "discover", "-s", "tests"],
-        cwd=ROOT, capture_output=True, text=True, encoding="utf-8",
-    )
-    if test.returncode != 0:
-        fails.append("测试未通过：\n" + test.stderr[-1500:])
+    run_cargo(fails)
 
     print(f"== 门禁 {task_id} ({card.name}) 基线 {base[:8]}")
     print(f"改动文件 {len(files)} 个；src +{src_added}/{budget_src} 行；tests +{tests_added}/{budget_tests} 行")

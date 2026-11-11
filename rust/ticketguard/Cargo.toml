@@ -1,0 +1,13 @@
+[package]
+name = "ticketguard"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "票审 TicketGuard：配电两票离线智能预审核心库"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+regex = { workspace = true }
+fancy-regex = { workspace = true }
+once_cell = { workspace = true }

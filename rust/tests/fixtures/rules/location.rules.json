@@ -1,0 +1,47 @@
+[
+  {
+    "id": "R-LOC-001",
+    "title": "工作地点应注明变电站和线路名称",
+    "ticket_types": [
+      "配电第一种工作票"
+    ],
+    "check": "regex",
+    "params": {
+      "field": "work_tasks.地点",
+      "pattern": "\\d+kV[^，、；。]*?站.*?\\d+kV[^，、；。]*?线",
+      "must_match": true
+    },
+    "severity": "warning",
+    "message": "工作地点“{value}”没有同时写明变电站和线路名称。",
+    "basis": {
+      "doc": "配电第一种工作票（票面栏目说明）",
+      "clause": "工作地点或设备",
+      "text": "工作地点或设备（注明变（配）电站、线路名称、设备双重名称及起止杆号）",
+      "source": "2026.9典票库 配电第一种工作票票样"
+    },
+    "status": "draft"
+  },
+  {
+    "id": "R-LOC-002",
+    "title": "工作地点涉及的线路应在停电设备或线路名称之内",
+    "ticket_types": [
+      "配电第一种工作票"
+    ],
+    "check": "lines_subset",
+    "params": {
+      "field": "work_tasks.地点",
+      "within": [
+        "outage_scope"
+      ]
+    },
+    "severity": "warning",
+    "message": "工作地点涉及的线路 {lines} 没有出现在“停电设备或线路名称”里，请核对工作地点或停电范围是否写错。",
+    "basis": {
+      "doc": "《中国南方电网有限责任公司电力安全工作规程第3部分：配电》（典票库第一章转述）",
+      "clause": "5.3.1.3",
+      "text": "工作负责人正确完整地填写工作票（含附件）",
+      "source": "2026.9典票库 第一章“两票”相关文件内容说明"
+    },
+    "status": "draft"
+  }
+]

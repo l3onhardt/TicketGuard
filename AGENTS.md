@@ -9,7 +9,7 @@
 
 - **用户**：审票的一方，主要是设备运维单位的工作票接收人、许可人，其次是生技部、安监部做抽查的人员。
 - **做什么**：输入一张工作票（从系统导出的 Word、Excel 或文本），对照《南宁供电局配电运检、配电自动化两票典型票库（2026 版）》和安规条款，输出“疑似问题清单”。每一条都要附上条款依据、对应的典票场景和置信度，供审票人决定是否打回。
-- **怎么跑**：运行在内网的普通办公电脑上（i5 四核、8GB 内存、无 GPU、Windows、**完全断网**）。
+- **怎么跑**：运行在内网的普通办公电脑上（i5 四核、8GB 内存、无 GPU、Windows、**完全断网**）。目标电脑很可能是 **Windows 7**（待核实位数），所以工具链钉在 1.77.2，见 ADR-0006。交付物是单个 `tg.exe`：把票拖到图标上就出报告。
 
 详细需求见 `docs/01-需求与定位.md`。
 
@@ -20,13 +20,15 @@
 3. **AI 不做最终裁决。** 系统输出的是“疑似问题”和“建议”，不得自动打回工作票，也不得自动认定违章。界面和报告上的用语必须体现“预审 / 建议 / 需人工确认”。
 4. **每条发现都必须有依据。** 每个 `Finding` 都必须带 `Basis`（文件、条款号、条款原文），没有依据的发现不允许输出。条款原文必须来自 `data/` 里的源文件，不得凭模型记忆编造。
 5. **运行时零联网。** 运行时代码不得发起任何网络请求，包括遥测、自动更新、在线下载模型。唯一的例外是连接本机 `127.0.0.1` 上的推理服务。
-6. **依赖最少化。** 核心功能只用 Python 标准库。新增第三方依赖之前必须在 `docs/decisions/` 写明理由，并确认它能离线打包。
+6. **依赖走白名单。** 产品用 Rust 实现，核心功能只用白名单里的依赖（见 ADR-0006 和 `tools/gate.py` 的 `ALLOWED_CRATES`）。新增第三方依赖之前必须在 `docs/decisions/` 写明理由，并确认它能在钉住的工具链（1.77.2）上构建、能离线打包。
 
 ## 3. 目录结构
 
 ```
 AGENTS.md            本文件（CLAUDE.md 通过 @ 引用它）
 README.md            项目简介与快速开始
+Cargo.toml           Rust 工作区；Cargo.lock 入库（依赖版本锁定）
+rust-toolchain.toml  工具链钉在 1.77.2（Windows 7 兼容，见 ADR-0006）
 docs/                设计文档（编号即阅读顺序）
   01-需求与定位.md   用户、场景、范围、非目标
   02-系统架构.md     流水线与模块划分
@@ -40,14 +42,15 @@ docs/                设计文档（编号即阅读顺序）
   10-协作工作流.md   Claude 规划 / Codex 实现 / 人工核对 的分工与流程
   decisions/         架构决策记录（ADR）
   tasks/             任务卡 T-xxx（交给实现方的合同）
-src/ticketguard/     主代码包
-  ingest/            文档解析（docx / xlsx，仅用标准库）
-  schema.py          Ticket / Finding / Basis 等核心数据结构
-  rules/             规则引擎
-  decision/          类 Jev 决策层接口与各个后端
-tests/               单元测试（unittest）
-tools/               辅助脚本；tg.py 是隔离模式下的命令行入口
-  gate.py            任务验收门禁（范围、预算、禁用写法、测试）
+rust/                产品代码（Rust）
+  ticketguard/       核心库：解析、实体、规则引擎、场景匹配、措施比对、报告、合成、评测
+  tg/                命令行入口，产出 tg.exe
+  tests/             集成测试；fixtures/ 是编造票面和基准结果（入库）
+archive/             已归档的 Python 参考实现（2026-11-12 归档，不参与构建和门禁，见 archive/README.md）
+  src/ tests/        最初的实现和测试；ingest/office.py 仍是唯一能读典票 docx 的代码
+  tools/             原来的命令行入口和移植期对拍工具
+tools/               辅助脚本
+  gate.py            任务验收门禁（范围、预算、禁用写法、依赖白名单、测试）
   codex/             派发脚本、提示词模板、汇报格式
 data/
   raw/               原始文件（git 忽略，只读，不要修改）
@@ -61,14 +64,24 @@ models/              本地模型文件 .gguf（git 忽略）
 
 ## 4. 常用命令
 
-在项目根目录运行。处理 `data/raw` 里的文件时，一律用 `py -I` 隔离模式。
+在项目根目录运行。
 
 ```bash
-py -I tools/tg.py ingest data/raw data/interim   # 解析原始文档
-py -I -m unittest discover -s tests -v           # 运行全部测试
+cargo build --release                            # 构建 target/release/tg.exe
+cargo test                                       # 运行全部 Rust 测试
+cargo fmt && cargo clippy --all-targets -- -D warnings   # 格式化、静态检查（零警告）
+target/release/tg.exe check 某张票.txt           # 预审一张票，报告写到 reports/
+target/release/tg.exe help                       # 其它命令：eval、synth、templates、scenarios
 py -I tools/gate.py T-001                        # 对某张任务卡跑验收门禁
 bash tools/codex/dispatch.sh T-001               # 派发任务给 Codex，完成后自动跑门禁
 ```
+
+在 Codex 的沙箱里没有 rustup，构建和测试一律用仓库自带的工具链（离线）：
+`tools\codex\cargo.cmd test`、`tools\codex\cargo.cmd fmt`、`tools\codex\cargo.cmd clippy --all-targets -- -D warnings`。
+（`.toolchain/` 被 git 忽略，没有时运行 `bash tools/codex/make-toolchain.sh` 重建。）
+
+从典票 docx 生成 `data/interim` 这一步还没有移植（需要解压和 XML 解析，要先写依赖 ADR），
+暂时仍用归档里的参考实现：`py -I archive/tools/tg.py ingest data/raw data/interim`。
 
 ## 5. 数据源与权威性
 
@@ -79,13 +92,15 @@ bash tools/codex/dispatch.sh T-001               # 派发任务给 Codex，完�
 
 ## 6. 编码约定
 
-- 开发环境 Python 3.13；代码要兼容 **Python ≥ 3.10**，最终用 PyInstaller 打包成 Windows 单文件 exe。
-- 每个模块开头写 `from __future__ import annotations`，所有公开函数都加类型标注。
-- 用户能看到的文本（报告、CLI 提示、规则说明）用**中文**；代码标识符用英文。只有业务专有名词可以用拼音或中文注释说明，见术语表。
-- 文件读写一律显式指定 `encoding="utf-8"`；Windows 控制台输出前要重设为 UTF-8，`__main__.main` 里已经处理。
-- 文件名经常含“2026.7.1”这样的多个点：拼接文件名时用 `f"{p.stem}.txt"`，**不要用 `with_suffix`**。
-- 测试用 `unittest`，测试数据在测试代码里用内存 zip 构造，不依赖 `data/raw`。
-- 新增一条规则，必须同时提供：一个它应当命中的样本、一个不应命中的样本，以及“全部典票零误报”的回归测试。
+- 产品代码用 Rust，edition 2021，工具链由 `rust-toolchain.toml` 钉在 **1.77.2**：不要用更新版本才有的语法和标准库接口（例如 `LazyLock`、`let` 链）。交付物是单个 `tg.exe`。
+- 提交前 `cargo fmt`；`cargo clippy --all-targets -- -D warnings` 必须零警告。
+- 用户能看到的文本（报告、CLI 提示、规则说明、报错信息）用**中文**；代码标识符用英文。只有业务专有名词可以用拼音或中文注释说明，见术语表。
+- 文件一律按 UTF-8 读写。票面文本可能带 BOM，`rust/tg` 的读取入口已经处理。
+- 按行切分文本用 `ticketguard::text::splitlines`，**不要用 `str::lines()`**：典票正文是从 Word 转出来的，含换页符、U+2028 这类 `lines()` 不认的换行符。
+- 中文字符串按字符处理（`chars()`、`char_indices()`），**不要按字节下标切片**，切在汉字中间会崩溃。
+- 文件名经常含“2026.7.1”这样的多个点：取主文件名用 `Path::file_stem`，拼接用 `format!("{stem}.txt")`。
+- 测试数据放在 `rust/tests/fixtures/`，只能是编造的票面；需要典票文本的测试在 `data/interim` 不存在时跳过。
+- 新增一条规则，必须同时提供：一个它应当命中的样本、一个不应命中的样本（`rust/tests/tests/rules.rs`），以及“全部典票零误报”的回归测试（`local_data.rs`）。
 
 ## 7. 工作方式
 
@@ -94,7 +109,7 @@ bash tools/codex/dispatch.sh T-001               # 派发任务给 Codex，完�
 - 进度和下一步以 `docs/08-开发计划.md` 为准。完成任务后在那里勾选，并写明验证方式。
 - 遇到不懂的电力业务概念，先查 `docs/09-术语表.md` 和典票原文，**不要靠猜**。仍不确定的，把问题记到 `docs/08-开发计划.md` 的“待确认问题”一节，让人来回答。
 - 规则、阈值、模型选型这类重要决定，写一条 ADR 放到 `docs/decisions/NNNN-标题.md`。
-- 改动解析逻辑后，要重新跑 `ingest`，并抽查典票文本没有丢字段。
+- 改动解析逻辑后，要跑 `cargo test`（其中 `local_data.rs` 会核对 21 张典票解析出 187 条措施、模板能原样重新生成），并抽查典票文本没有丢字段。
 
 ## 8. 编码风格：克制（对所有写代码的人和代理都适用）
 
@@ -102,19 +117,20 @@ bash tools/codex/dispatch.sh T-001               # 派发任务给 Codex，完�
 
 **信任内部，只在边界校验**
 
-- 模块之间互相调用时，不检查类型，不检查 None，不检查“不可能出现”的状态。数据结构由 `schema.py` 定义，调用方负责传对。
-- 只在边界做一次校验：读文件、解析用户输入、读取规则 JSON 的时候。校验失败就**立刻抛出异常**，消息用中文写清楚哪个文件、哪个字段、期望什么。
-- ⛔ 不写 `except:`，也不写 `except Exception`。⛔ 不吞异常，不静默降级，不写“失败就返回空值继续跑”的兜底，不写重试。
+- 模块之间互相调用时，不检查“不可能出现”的状态。数据结构由 `schema.rs` 定义，调用方负责传对。
+- 只在边界做一次校验：读文件、解析用户输入、读取规则 JSON 的时候。校验失败就**立刻返回错误**，消息用中文写清楚哪个文件、哪个字段、期望什么。规则的参数形状和字段路径在加载时校验（`parse_rule`），算子里不再防御。
+- 边界上的失败用 `Result` 往上传，由命令行入口转成一句中文提示；内部不变量被破坏用 `expect("说明为什么不可能")`，让问题直接暴露。
+- ⛔ 不吞错误，不静默降级，不写“失败就返回空值继续跑”的兜底，不写重试。`unwrap_or` / `unwrap_or_default` 只用在“这一栏本来就可以没有”的地方。
 
 **不为假想的需求写代码**
 
-- 只实现任务卡要求的功能。不加卡片没要求的参数、开关、配置项、插件机制或注册表（规则引擎的检查算子注册表是唯一例外）。
-- 不新建抽象基类、工厂、管理器、包装层。同样的逻辑重复出现三次以上，才考虑抽成函数。
-- ⛔ 不引入 `logging`，不做缓存，不搞多线程，不加兼容层。命令行要输出信息，就 `print` 到 stdout 或 stderr。
-- ⛔ 不留 TODO，不写 `# type: ignore`。⛔ 运行时代码不得 import 网络库。
+- 只实现任务卡要求的功能。不加卡片没要求的参数、开关、配置项、插件机制或注册表（规则引擎的检查算子表是唯一例外）。
+- 不新建 trait、泛型抽象、工厂、管理器、包装层。同样的逻辑重复出现三次以上，才考虑抽成函数。
+- ⛔ 不引入日志库，不做缓存，不搞多线程和异步，不加兼容层。命令行要输出信息，就 `println!` / `eprintln!`。
+- ⛔ 不写 `unsafe`，不留 TODO / `todo!()` / `dbg!()`，不用 `#[allow(...)]` 压警告。⛔ 运行时代码不得使用网络（`std::net` 和任何网络库）。⛔ 核心库不得启动外部进程。
 
 **写短，写直白**
 
-- 函数尽量控制在 40 行以内，模块尽量控制在 300 行以内。优先用 dataclass、普通函数、`re` 和推导式。
-- 注释只写“为什么这样做”，不复述代码在做什么。docstring 写一两行就够。
+- 函数尽量控制在 40 行以内，模块尽量控制在 300 行以内。优先用普通的 struct、普通函数和迭代器。
+- 注释只写“为什么这样做”，不复述代码在做什么。文档注释写一两行就够。
 - 测试只覆盖任务卡列出的行为，不为不可能出现的输入写测试，不大量 mock。

@@ -1,0 +1,3 @@
+# 中文提示语和正则都比较长，行宽放到 120
+max_width = 120
+use_small_heuristics = "Max"

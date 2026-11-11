@@ -1,0 +1,14 @@
+[package]
+name = "tg"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "票审 TicketGuard 命令行入口"
+
+[[bin]]
+name = "tg"
+path = "src/main.rs"
+
+[dependencies]
+ticketguard = { workspace = true }
+serde_json = { workspace = true }

@@ -9,12 +9,9 @@ card=$(ls docs/tasks/"$id"-*.md)
 run=".codex-runs/$id"; mkdir -p "$run"
 effort=$(sed -n 's/^effort:[[:space:]]*//p' "$card" | head -1)
 
-# Windows 沙箱账户读不到用户目录里的 Python，复制一份精简运行时到 .venv/py（git 忽略）
-if [ ! -x .venv/py/python.exe ]; then
-  src=$(py -c "import sys,os;print(os.path.dirname(sys.executable))")
-  mkdir -p .venv/py/Lib && cp "$src"/python.exe "$src"/*.dll .venv/py/ && cp -r "$src/DLLs" .venv/py/
-  (cd "$src/Lib" && tar cf - --exclude=site-packages --exclude=test --exclude=idlelib --exclude=tkinter --exclude=ensurepip --exclude=__pycache__ .) | (cd .venv/py/Lib && tar xf -)
-fi
+# Codex 的沙箱看不到开发机用户目录下的 rustup / cargo。仓库里自带一份工具链和依赖源码
+# （.toolchain/，git 忽略），沙箱通过 tools/codex/cargo.cmd 使用，完全离线。
+[ -x .toolchain/rust/bin/cargo.exe ] || bash tools/codex/make-toolchain.sh
 
 if [ -z "$review" ]; then
   git rev-parse --verify -q HEAD >/dev/null || { echo "仓库还没有任何提交，先提交基线再派发"; exit 1; }

@@ -1,0 +1,7 @@
+# 工具链钉在 1.77.2：这是标准 Windows 目标仍支持 Windows 7 的最后一个版本
+# （1.78 起要求 Windows 10）。目标机器是 Win7，见 docs/decisions/0006。
+# 用 gnu 而不是 msvc：gnu 工具链自带链接器，开发机不需要装 Visual Studio。
+[toolchain]
+channel = "1.77.2-x86_64-pc-windows-gnu"
+components = ["clippy", "rustfmt"]
+profile = "minimal"

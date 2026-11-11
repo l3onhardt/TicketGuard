@@ -1,0 +1,66 @@
+[
+  {
+    "id": "R-HOT-001",
+    "title": "一级动火工作票有效期不超过 24 小时",
+    "ticket_types": ["一级动火工作票"],
+    "check": "duration_max",
+    "params": {"start": "plan_start", "end": "plan_end", "hours": 24},
+    "severity": "error",
+    "message": "一级动火工作票计划时间为 {actual_hours} 小时，超过有效期 {hours} 小时。",
+    "basis": {
+      "doc": "《中国南方电网有限责任公司电力安全工作规程第3部分：配电》释义",
+      "clause": "21.3.5.3",
+      "text": "一级动火工作票的有效期为24h，二级动火工作票的有效期为120h。",
+      "source": "2026.9典票库 脚注27"
+    },
+    "status": "draft"
+  },
+  {
+    "id": "R-HOT-002",
+    "title": "二级动火工作票有效期不超过 120 小时",
+    "ticket_types": ["二级动火工作票"],
+    "check": "duration_max",
+    "params": {"start": "plan_start", "end": "plan_end", "hours": 120},
+    "severity": "error",
+    "message": "二级动火工作票计划时间为 {actual_hours} 小时，超过有效期 {hours} 小时。",
+    "basis": {
+      "doc": "《中国南方电网有限责任公司电力安全工作规程第3部分：配电》释义",
+      "clause": "21.3.5.3",
+      "text": "一级动火工作票的有效期为24h，二级动火工作票的有效期为120h。",
+      "source": "2026.9典票库 脚注27"
+    },
+    "status": "draft"
+  },
+  {
+    "id": "R-HOT-003",
+    "title": "动火工作票签发人不应兼任动火工作负责人",
+    "ticket_types": ["一级动火工作票", "二级动火工作票"],
+    "check": "roles_disjoint",
+    "params": {"roles": ["签发人", "工作负责人"]},
+    "severity": "error",
+    "message": "{name} 同时担任了 {roles}。",
+    "basis": {
+      "doc": "《中国南方电网有限责任公司电力安全工作规程第3部分：配电》释义",
+      "clause": "21.3.6.3",
+      "text": "动火工作票签发人不应兼任动火工作负责人。",
+      "source": "2026.9典票库 脚注29"
+    },
+    "status": "draft"
+  },
+  {
+    "id": "R-LIVE-001",
+    "title": "带电作业应设专责监护人",
+    "ticket_types": ["配电带电作业工作票"],
+    "check": "role_required",
+    "params": {"roles": ["专责监护人"]},
+    "severity": "error",
+    "message": "带电作业工作票上没有找到{role}。",
+    "basis": {
+      "doc": "《中国南方电网有限责任公司电力安全工作规程第3部分：配电》（典票库第一章转述）",
+      "clause": "13.1.5",
+      "text": "13.1.5 带电作业应设专责监护人。",
+      "source": "2026.9典票库 第一章“两票”相关文件内容说明"
+    },
+    "status": "draft"
+  }
+]

@@ -1,0 +1,11 @@
+[package]
+name = "ticketguard-tests"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "票审 TicketGuard 的集成测试（基准对比、规则行为、本地典票数据验收）"
+publish = false
+
+[dependencies]
+ticketguard = { workspace = true }
+serde_json = { workspace = true }
