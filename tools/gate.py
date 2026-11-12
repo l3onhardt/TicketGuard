@@ -61,9 +61,10 @@ def load_card(task_id: str) -> tuple[Path, dict]:
 
 
 def changed_files(base: str) -> list[str]:
-    tracked = sh("git", "diff", "--name-only", base).split()
-    untracked = sh("git", "ls-files", "--others", "--exclude-standard").split()
-    return sorted(set(tracked + untracked))
+    # -z + core.quotepath=false：文件名里有中文、空格时也能原样拿到（默认会把中文转义成 \345\274…）
+    tracked = sh("git", "-c", "core.quotepath=false", "diff", "--name-only", "-z", base).split("\0")
+    untracked = sh("git", "-c", "core.quotepath=false", "ls-files", "--others", "--exclude-standard", "-z").split("\0")
+    return sorted({name for name in tracked + untracked if name})
 
 
 def added_lines(base: str, path: str) -> list[str]:
