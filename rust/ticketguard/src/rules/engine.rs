@@ -486,6 +486,7 @@ pub fn run_rules(ticket: &Ticket, rules: &[Rule]) -> Vec<Finding> {
                 ticket_says: evidence,
                 typical_text: String::new(),
                 unreviewed: rule.status == "draft",
+                second: None,
             });
         }
     }

@@ -160,6 +160,17 @@ pub struct Basis {
     pub source: String,
 }
 
+/// 模型对一条“疑似缺项”的复核意见（见 ADR-0008）。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Second {
+    /// 票面同一栏里，模型认为最接近的那条措施（原文）
+    pub measure: String,
+    /// 模型认为“是同一类措施”的把握，0～1
+    pub p: f64,
+    /// 把握达到阈值：模型认为只是写法不同
+    pub same: bool,
+}
+
 /// 一条审查发现。AI 永远只输出“疑似”，最终结论由人确认。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Finding {
@@ -183,4 +194,7 @@ pub struct Finding {
     pub typical_text: String,
     /// 产生它的规则还是草稿，没有经过业务人员核对
     pub unreviewed: bool,
+    /// 模型的复核意见。规则模式下、或这一条不需要复核时是 None
+    #[serde(default)]
+    pub second: Option<Second>,
 }

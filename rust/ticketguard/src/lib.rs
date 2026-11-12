@@ -5,6 +5,7 @@
 
 pub mod entities;
 pub mod evaluate;
+pub mod harness;
 pub mod ingest;
 pub mod regex;
 pub mod report;

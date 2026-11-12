@@ -21,6 +21,17 @@ pub fn cmp_basis() -> Basis {
     }
 }
 
+/// 这次预审有没有请模型复核（见 ADR-0008）。
+#[derive(Debug, Clone, PartialEq)]
+pub enum ModelUse {
+    /// 规则模式：没有请模型
+    Off,
+    /// 模型复核做完了。asked 是向模型提问的次数
+    Done { asked: usize },
+    /// 想用模型但没用成，附一句给人看的原因
+    Failed(String),
+}
+
 /// 一次预审的结果：结构化票面、前 3 个候选场景、全部发现。
 pub struct Review {
     pub ticket: Ticket,
@@ -28,6 +39,16 @@ pub struct Review {
     pub findings: Vec<Finding>,
     /// 这张票实际跑过的规则编号（票种对得上的那些），顺序同规则列表
     pub checked_rules: Vec<String>,
+    pub model: ModelUse,
+}
+
+/// 按严重度排序。稳定排序：同一严重度内保持原顺序。
+pub fn sort_findings(findings: &mut [Finding]) {
+    findings.sort_by_key(|finding| match finding.severity {
+        Severity::Error => 0,
+        Severity::Warning => 1,
+        Severity::Info => 2,
+    });
 }
 
 /// 模板编号 → 场景序号：“D1-S01” → “1”，“D1-S12” → “12”
@@ -128,6 +149,7 @@ pub fn compare_measures(ticket: &Ticket, template: &Template, lexicon: &Lexicon,
             },
             typical_text: rm.source_text.clone(),
             unreviewed: false,
+            second: None,
         });
     }
     findings
@@ -166,13 +188,15 @@ pub fn review_text(
             ticket_says: String::new(),
             typical_text: String::new(),
             unreviewed: false,
+            second: None,
         });
     }
-    // 稳定排序：同一严重度内保持原顺序（先规则，后比对），与参考实现一致。
-    findings.sort_by_key(|finding| match finding.severity {
-        Severity::Error => 0,
-        Severity::Warning => 1,
-        Severity::Info => 2,
-    });
-    Ok(Review { ticket, candidates: candidates.into_iter().take(3).collect(), findings, checked_rules })
+    sort_findings(&mut findings);
+    Ok(Review {
+        ticket,
+        candidates: candidates.into_iter().take(3).collect(),
+        findings,
+        checked_rules,
+        model: ModelUse::Off,
+    })
 }
