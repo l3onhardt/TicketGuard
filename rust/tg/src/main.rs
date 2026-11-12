@@ -4,15 +4,18 @@
 //! `check`（预审一张票）、`eval`（合成集评测）、`synth`（生成合成样本）、
 //! `scenarios`（按场景切分典票正文）。典票 docx 的读取暂不在 Rust 里做。
 
+mod model;
+
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use ticketguard::entities::load_lexicon;
 use ticketguard::evaluate::evaluate;
+use ticketguard::harness::{load_harness, second_opinion, Harness};
 use ticketguard::ingest::{parse_dist1, split_scenarios};
 use ticketguard::report::{build_report, render_html};
-use ticketguard::review::review_text;
+use ticketguard::review::{review_text, ModelUse};
 use ticketguard::rules::load_rules;
 use ticketguard::synth::generate;
 use ticketguard::templates::{build_template, load_templates};
@@ -22,8 +25,9 @@ fn usage() -> String {
     "用法：tg <命令> [参数]\n\
      \n\
      命令：\n\
-       check <票面文件> [--out 目录] [--templates 目录] [--rules 目录] [--lexicon 文件]\n\
+       check <票面文件> [--out 目录] [--templates 目录] [--rules 目录] [--lexicon 文件] [--mode rule|model|auto]\n\
            预审一张票（票面文本 .txt），写出 JSON 和 HTML 报告\n\
+           --mode：rule 只用规则；model 规则之后再请本机模型复核；auto（默认）有模型就用\n\
        eval <典票正文.txt> [样本.jsonl] [--out 报告.json] [--templates 目录] [--rules 目录] [--lexicon 文件]\n\
            在合成集上评测检出率与场景命中\n\
        synth <典票正文.txt> [输出.jsonl] [--per N] [--seed N]\n\
@@ -130,8 +134,39 @@ fn read_ticket(path: &Path) -> Result<String, Error> {
     Ok(text.strip_prefix('\u{feff}').map(str::to_string).unwrap_or(text))
 }
 
+enum Mode {
+    Rule,
+    Ready(model::Model, Box<Harness>),
+    Failed(String),
+}
+
+fn prepare_mode(args: &Args) -> Result<Mode, Error> {
+    let mode = match args.options.get("mode") {
+        Some(mode) => mode.clone(),
+        None => std::env::var("TG_MODE").unwrap_or_else(|_| "auto".to_string()),
+    };
+    match mode.as_str() {
+        "rule" => return Ok(Mode::Rule),
+        "auto" | "model" => {}
+        _ => return Err(Error(format!("--mode 只能是 rule、model 或 auto，不能是 {mode}"))),
+    }
+    let dir = locate("models");
+    if mode == "auto" && !dir.is_dir() {
+        return Ok(Mode::Rule);
+    }
+    let harness = load_harness(&locate("data/harness.json"))?;
+    println!("正在启动模型（第一次要等一会儿）…");
+    Ok(match model::Model::start(&harness, &dir) {
+        Ok(model) => Mode::Ready(model, Box::new(harness)),
+        Err(err) => {
+            println!("模型没有用上，这次只用规则：{err}");
+            Mode::Failed(err.0)
+        }
+    })
+}
+
 /// 预审一张票，写出 JSON 和 HTML 报告，返回 HTML 的路径。
-fn check_ticket(path: &Path, out_dir: &Path, args: &Args) -> Result<PathBuf, Error> {
+fn check_ticket(path: &Path, out_dir: &Path, args: &Args, mode: &Mode) -> Result<PathBuf, Error> {
     if !count_suffix(path, ".txt") {
         return Err(Error(format!("{}：目前只支持票面文本（.txt）。PDF 和 Word 的读取还没有做。", path.display())));
     }
@@ -139,7 +174,17 @@ fn check_ticket(path: &Path, out_dir: &Path, args: &Args) -> Result<PathBuf, Err
     let lexicon = load_lexicon(&args.data(OPT_LEXICON, "data/rules/lexicon.json"))?;
     let rules = load_rules(&args.data(OPT_RULES, "data/rules"))?;
     let templates = load_templates(&args.data(OPT_TEMPLATES, "data/templates/D1"))?;
-    let review = review_text(&text, &rules, &templates, &lexicon)?;
+    let mut review = review_text(&text, &rules, &templates, &lexicon)?;
+    match mode {
+        Mode::Ready(model, harness) => {
+            if let Err(err) = second_opinion(&mut review, &templates, harness, &mut |body| model.ask(body)) {
+                println!("模型复核没有做成，这张票只用了规则：{err}");
+                review.model = ModelUse::Failed(err.0);
+            }
+        }
+        Mode::Failed(reason) => review.model = ModelUse::Failed(reason.clone()),
+        Mode::Rule => {}
+    }
     let report = build_report(&review, &templates, path.file_name().and_then(|name| name.to_str()).unwrap_or(""));
     let name = stem(path);
     write_file(&out_dir.join(format!("{name}.预审.json")), &format!("{}\n", pretty(&report)))?;
@@ -176,7 +221,8 @@ fn check_ticket(path: &Path, out_dir: &Path, args: &Args) -> Result<PathBuf, Err
 fn cmd_check(args: &Args) -> Result<(), Error> {
     let source = args.positional.first().ok_or_else(|| Error("check 需要票面文件：tg check <票面文件>".to_string()))?;
     let out_dir = PathBuf::from(args.option(OPT_OUT, "reports"));
-    check_ticket(Path::new(source), &out_dir, args).map(|_| ())
+    let mode = prepare_mode(args)?;
+    check_ticket(Path::new(source), &out_dir, args, &mode).map(|_| ())
 }
 
 /// 用系统默认浏览器打开报告。不经过命令解释器，路径里有空格或特殊字符也安全。
@@ -200,11 +246,19 @@ fn wait_for_enter() {
 /// 拖放模式：把一张或几张票拖到 exe 图标上。报告写在票的旁边，并自动打开。
 fn run_dropped(files: &[String]) -> ExitCode {
     let args = Args { positional: Vec::new(), options: HashMap::new() };
+    let mode = match prepare_mode(&args) {
+        Ok(mode) => mode,
+        Err(err) => {
+            eprintln!("{err}");
+            wait_for_enter();
+            return ExitCode::FAILURE;
+        }
+    };
     let mut failed = false;
     for file in files {
         let path = Path::new(file);
         let out_dir = path.parent().filter(|dir| !dir.as_os_str().is_empty()).unwrap_or(Path::new("."));
-        match check_ticket(path, out_dir, &args) {
+        match check_ticket(path, out_dir, &args, &mode) {
             Ok(html) => open_in_browser(&html),
             Err(err) => {
                 failed = true;
@@ -213,6 +267,7 @@ fn run_dropped(files: &[String]) -> ExitCode {
         }
         println!();
     }
+    drop(mode);
     // 出错时停住，让人看清原因；成功时报告已经在浏览器里打开，窗口直接关掉
     if failed {
         wait_for_enter();

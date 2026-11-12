@@ -1,6 +1,6 @@
 //! 审票清单式的离线预审报告。
 
-use crate::review::{scenario_number, Review, HIGH_SIMILARITY, LOW_SIMILARITY};
+use crate::review::{scenario_number, ModelUse, Review, HIGH_SIMILARITY, LOW_SIMILARITY};
 use crate::schema::{Finding, Severity};
 use crate::templates::Template;
 use serde_json::{json, Value};
@@ -8,6 +8,9 @@ use serde_json::{json, Value};
 pub const TITLE: &str = "工作票预审报告";
 pub const DISCLAIMER: &str = "本报告是机器预审的结果，所列都是需要人工确认的疑点和提示；是否接收或打回，由审票人决定。";
 pub const DRAFT_HEAD: &str = "预审意见（草稿，请核实后使用）：";
+pub const MODEL_ROW: &str = "模型复核（措施是不是只是写法不同）";
+pub const MODEL_OFF_RISK: &str = "措施换了说法可能被报成缺少。";
+pub const MODEL_OFF: &str = "这次是规则模式，没有请模型复核。措施换了说法可能被报成缺少。";
 pub const LIMITS: [&str; 4] = [
     "机器只检查了“审票清单”里列出的项目，没有列出的都没有检查。",
     "不判断现场物理条件：实际安全距离够不够、所拉的开关能否真正隔离作业区，需要结合配网拓扑和现场勘察。",
@@ -51,7 +54,7 @@ fn group(id: &str) -> &'static str {
         "工作地点"
     } else if id.starts_with("R-HOT-") || id.starts_with("R-LIVE-") {
         "特殊作业要求"
-    } else if id.starts_with("CMP-MISSING") || id.starts_with("MATCH-LOW") {
+    } else if id.starts_with("CMP-MISSING") || id.starts_with("CMP-REWORDED") || id.starts_with("MATCH-LOW") {
         "安全措施（对照典票）"
     } else {
         "其他检查"
@@ -69,6 +72,15 @@ fn ticket_json(review: &Review) -> Value {
 }
 
 fn finding_json(finding: &Finding) -> Value {
+    let second = finding.second.as_ref().map(|second| {
+        let measure = &second.measure;
+        let says = if second.same {
+            format!("票面上的“{measure}”和典票这一条是同一类措施，只是写法不同。")
+        } else {
+            format!("这一栏里最接近的是“{measure}”，但它和典票这一条不是同一类措施。")
+        };
+        json!({"measure": measure, "same": second.same, "p": second.p, "says": says})
+    });
     json!({
         "rule_id": finding.rule_id, "severity": finding.severity.as_str(),
         "label": label(finding.severity), "group": group(&finding.rule_id),
@@ -79,6 +91,7 @@ fn finding_json(finding: &Finding) -> Value {
         "unreviewed": finding.unreviewed, "picked": finding.severity != Severity::Info,
         "draft_line": draft_item(finding), "evidence": finding.evidence,
         "confidence": finding.confidence, "scenario_id": finding.scenario_id,
+        "second": second,
     })
 }
 
@@ -150,15 +163,33 @@ fn checklist(review: &Review, scenario: &Value) -> Vec<Value> {
         rows.push(json!({"name": name, "status": status, "detail": detail}));
     }
     let missing = review.findings.iter().filter(|finding| finding.rule_id == "CMP-MISSING").count();
+    let r = review.findings.iter().filter(|finding| finding.rule_id == "CMP-REWORDED").count();
     let label = text(scenario, "label");
     let (status, detail) = if scenario["matched"] == false {
         ("skipped", "没有找到足够相似的典票场景，没有做比对。请人工审核全部安全措施".to_string())
     } else if missing > 0 {
         ("found", format!("对照{label}，有 {missing} 类措施没有找到，见下方"))
+    } else if r > 0 {
+        ("found", format!("对照{label}，有 {r} 类措施的写法和典票不同，见下方"))
     } else {
         ("checked", format!("对照{label}，各类必备措施都找到了"))
     };
     rows.push(json!({"name": "安全措施（对照典票）", "status": status, "detail": detail}));
+    let n = review.findings.iter().filter(|finding| finding.second.is_some()).count();
+    let (status, detail) = match &review.model {
+        ModelUse::Off => ("skipped", MODEL_OFF.to_string()),
+        ModelUse::Failed(reason) => {
+            ("skipped", format!("模型复核没有做成：{reason}。这份报告只用了规则，{MODEL_OFF_RISK}"))
+        }
+        ModelUse::Done { .. } if n == 0 => ("checked", "没有需要模型复核的事项".to_string()),
+        ModelUse::Done { .. } if r == 0 => {
+            ("checked", format!("模型复核了 {n} 条疑似缺少的措施，没有发现只是写法不同的"))
+        }
+        ModelUse::Done { .. } => {
+            ("found", format!("模型复核了 {n} 条疑似缺少的措施，认为其中 {r} 条只是写法不同，已改成提示，见下方"))
+        }
+    };
+    rows.push(json!({"name": MODEL_ROW, "status": status, "detail": detail}));
     rows.push(json!({"name": "机器查不了的项目", "status": "skipped", "detail": MANUAL_ITEMS}));
     rows
 }
@@ -259,6 +290,11 @@ fn finding_card(finding: &Value) -> String {
             e("typical_text")
         )
     };
+    let second = if finding["second"].is_null() {
+        String::new()
+    } else {
+        format!("<p class=\"second\">模型的看法：{}</p>", escape(text(&finding["second"], "says")))
+    };
     let unreviewed = if finding["unreviewed"] == true {
         "<p class=\"secondary\">这条规则还没有经过业务人员核对，暂时只作为提示。</p>"
     } else {
@@ -266,7 +302,7 @@ fn finding_card(finding: &Value) -> String {
     };
     format!(
         "<div class=\"finding finding-{}\"><label class=\"pick-label\"><input type=\"checkbox\" class=\"pick\" data-text=\"{}\" onchange=\"updateDraft()\"{checked}> 写进打回意见</label>\
-         <div><span class=\"tag\">{}</span> <span class=\"tag\">{}</span></div><h3>{}</h3><p>{}</p>{ticket}{typical}\
+         <div><span class=\"tag\">{}</span> <span class=\"tag\">{}</span></div><h3>{}</h3><p>{}</p>{ticket}{typical}{second}\
          <p class=\"basis\">依据：{} {}：{}{source}</p>{unreviewed}</div>",
         e("severity"), e("draft_line"), e("label"), e("group"), e("title"), e("message"),
         escape(text(basis, "doc")), escape(text(basis, "clause")), escape(text(basis, "text")),
@@ -343,6 +379,7 @@ h2 {{font-size: 1.25rem;}}
 .number {{font-size: 1.8rem; font-weight: bold;}}
 .secondary, small, .basis {{color: #52606d;}}
 .basis, small {{font-size: .875rem;}}
+.second {{background: #f0f4f8; padding: .5rem .75rem;}}
 .verdict {{border-left-width: 6px;}}
 .headline {{font-size: 1.5rem; font-weight: bold;}}
 .verdict-issues {{border-left-color: #b45309; background: #fff7ed;}}
