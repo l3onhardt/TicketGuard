@@ -102,7 +102,19 @@ fn model_sections_in_order() {
     let report = report_for("d1_a", &snapshot());
     assert_eq!(
         keys(&report),
-        ["title", "source", "disclaimer", "ticket", "verdict", "checklist", "findings", "scenario", "draft", "limits"]
+        [
+            "title",
+            "source",
+            "disclaimer",
+            "ticket",
+            "verdict",
+            "checklist",
+            "findings",
+            "scenario",
+            "draft",
+            "limits",
+            "feedback"
+        ]
     );
     assert_eq!(report["title"], TITLE);
     assert_eq!(report["source"], "d1_a.txt");

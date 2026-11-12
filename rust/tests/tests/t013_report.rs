@@ -164,8 +164,13 @@ fn page_shows_the_opinion_in_plain_words() {
         (card.find("典票上的写法：").unwrap(), card.find("模型的看法：").unwrap(), card.find("依据：").unwrap());
     assert!(typical < second && second < basis);
     assert!(html.contains(&escape(MODEL_ROW)));
-    for word in ["CMP-REWORDED", "0.9", "0.1", "second\":", "says", "threshold", "logprob"] {
+    for word in ["CMP-REWORDED", "second\":", "says", "threshold", "logprob"] {
         assert!(!html.contains(word), "页面上不应出现“{word}”");
+    }
+    // 模型的把握不上页面。只看清单和事项这两块：页面别处有程序版本号这类和把握无关的数字
+    let shown = &html[html.find("id=\"checklist\"").unwrap()..html.find("id=\"draft-section\"").unwrap()];
+    for number in ["0.9", "0.1", "90%", "10%"] {
+        assert!(!shown.contains(number), "页面上不应出现模型的把握“{number}”");
     }
     for word in ["违章", "不合格", "必须打回", "审核通过", "没有问题", "无问题"] {
         assert!(!html.contains(word), "页面上不应出现“{word}”");
