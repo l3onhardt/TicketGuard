@@ -175,4 +175,12 @@ pub struct Finding {
     pub needs_review: bool,
     /// 对照的典票场景
     pub scenario_id: Option<String>,
+    /// 给人看的短标题
+    pub title: String,
+    /// 票面上对应位置写的内容。没有就是空串
+    pub ticket_says: String,
+    /// 典票上的原文（只有措施比对的发现才有）。没有就是空串
+    pub typical_text: String,
+    /// 产生它的规则还是草稿，没有经过业务人员核对
+    pub unreviewed: bool,
 }

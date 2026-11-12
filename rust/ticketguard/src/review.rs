@@ -9,6 +9,8 @@ use std::collections::BTreeSet;
 
 /// 见 ADR-0004：0.4 时整栏措施被删的票会跌破阈值而漏检
 pub const MATCH_MIN: f64 = 0.3;
+pub const LOW_SIMILARITY: f64 = 0.45;
+pub const HIGH_SIMILARITY: f64 = 0.60;
 
 pub fn cmp_basis() -> Basis {
     Basis {
@@ -24,6 +26,13 @@ pub struct Review {
     pub ticket: Ticket,
     pub candidates: Vec<(String, f64)>,
     pub findings: Vec<Finding>,
+    /// 这张票实际跑过的规则编号（票种对得上的那些），顺序同规则列表
+    pub checked_rules: Vec<String>,
+}
+
+/// 模板编号 → 场景序号：“D1-S01” → “1”，“D1-S12” → “12”
+pub fn scenario_number(template_id: &str) -> String {
+    template_id.rsplit_once('S').expect("模板编号包含场景序号").1.parse::<u32>().expect("场景序号为整数").to_string()
 }
 
 fn jaccard<T: Ord>(a: &BTreeSet<T>, b: &BTreeSet<T>) -> f64 {
@@ -85,18 +94,40 @@ pub fn compare_measures(ticket: &Ticket, template: &Template, lexicon: &Lexicon,
         if present {
             continue;
         }
+        let ticket_says = ticket
+            .measures
+            .iter()
+            .filter(|measure| measure.category == rm.category)
+            .map(|measure| measure.text.as_str())
+            .collect::<Vec<_>>()
+            .join("；");
+        let caution = if confidence < LOW_SIMILARITY {
+            "注意：对照的场景相似度低，这个场景可能不对，这条缺项不一定是真的，请人工核对。"
+        } else {
+            ""
+        };
         findings.push(Finding {
             rule_id: "CMP-MISSING".to_string(),
-            severity: if rm.must { Severity::Warning } else { Severity::Info },
+            severity: if rm.must && confidence >= LOW_SIMILARITY { Severity::Warning } else { Severity::Info },
             message: format!(
-                "对照典票场景 {}「{}」（匹配度 {:.2}），票面“{}”栏中没有找到这类措施：{}",
-                template.id, template.title, confidence, rm.category, rm.pattern
+                "对照典票场景 {}「{}」，票面“{}”栏中没有找到这类措施。{caution}",
+                scenario_number(&template.id),
+                template.title,
+                rm.category
             ),
             basis: cmp_basis(),
             evidence: rm.id.clone(),
             confidence,
             needs_review: true,
             scenario_id: Some(template.id.clone()),
+            title: format!("“{}”栏可能缺少一类措施", rm.category),
+            ticket_says: if ticket_says.is_empty() {
+                "这一栏没有填写措施（写的是“无”或空着）".to_string()
+            } else {
+                ticket_says
+            },
+            typical_text: rm.source_text.clone(),
+            unreviewed: false,
         });
     }
     findings
@@ -110,6 +141,11 @@ pub fn review_text(
     lexicon: &Lexicon,
 ) -> Result<Review, ParseError> {
     let ticket = parse_dist1(text)?;
+    let checked_rules = rules
+        .iter()
+        .filter(|rule| rule.ticket_types.contains(&ticket.ticket_type.as_str().to_string()))
+        .map(|rule| rule.id.clone())
+        .collect();
     let mut findings = run_rules(&ticket, rules);
     let candidates = match_scenario(&ticket, templates, lexicon);
     let (scenario_id, confidence) = candidates[0].clone();
@@ -120,14 +156,16 @@ pub fn review_text(
         findings.push(Finding {
             rule_id: "MATCH-LOW".to_string(),
             severity: Severity::Info,
-            message: format!(
-                "没有找到足够相似的典票场景（最接近的是 {scenario_id}，匹配度 {confidence:.2}），本次未做安全措施比对。"
-            ),
+            message: "没有找到足够相似的典票场景，本次没有做安全措施比对，请人工审核全部安全措施。".to_string(),
             basis: cmp_basis(),
             evidence: String::new(),
             confidence,
             needs_review: true,
             scenario_id: None,
+            title: "没有找到对应的典票场景".to_string(),
+            ticket_says: String::new(),
+            typical_text: String::new(),
+            unreviewed: false,
         });
     }
     // 稳定排序：同一严重度内保持原顺序（先规则，后比对），与参考实现一致。
@@ -136,5 +174,5 @@ pub fn review_text(
         Severity::Warning => 1,
         Severity::Info => 2,
     });
-    Ok(Review { ticket, candidates: candidates.into_iter().take(3).collect(), findings })
+    Ok(Review { ticket, candidates: candidates.into_iter().take(3).collect(), findings, checked_rules })
 }

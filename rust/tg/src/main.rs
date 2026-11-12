@@ -146,21 +146,28 @@ fn check_ticket(path: &Path, out_dir: &Path, args: &Args) -> Result<PathBuf, Err
     let html = out_dir.join(format!("{name}.预审.html"));
     write_file(&html, &render_html(&report))?;
 
-    let top = &report["candidates"][0];
+    let scenario = &report["scenario"];
     let number = match report["ticket"]["number"].as_str() {
         Some(value) if !value.is_empty() => value.to_string(),
         _ => "未填写".to_string(),
     };
-    println!(
-        "工作票 {number}：最接近典票场景 {}「{}」（匹配度 {:.2}）",
-        top["id"].as_str().unwrap_or(""),
-        top["title"].as_str().unwrap_or(""),
-        top["score"].as_f64().unwrap_or(0.0)
-    );
-    let findings = report["findings"].as_array().cloned().unwrap_or_default();
-    println!("疑似问题 {} 条（需人工确认）：", findings.len());
-    for finding in &findings {
-        println!("  [{}] {}", finding["label"].as_str().unwrap_or(""), finding["message"].as_str().unwrap_or(""));
+    println!("工作票 {number}：{}", report["verdict"]["headline"].as_str().expect("报告结论为字符串"));
+    if scenario["matched"] == true {
+        println!(
+            "对照{}（相似度：{}）",
+            scenario["label"].as_str().expect("场景名称为字符串"),
+            scenario["similarity"].as_str().expect("相似度为字符串")
+        );
+    } else {
+        println!("没有找到对应的典票场景");
+    }
+    for finding in report["findings"].as_array().expect("发现为数组") {
+        println!(
+            "  [{}] {}：{}",
+            finding["label"].as_str().expect("标签为字符串"),
+            finding["title"].as_str().expect("标题为字符串"),
+            finding["message"].as_str().expect("消息为字符串")
+        );
     }
     println!("报告 → {}", html.display());
     Ok(html)

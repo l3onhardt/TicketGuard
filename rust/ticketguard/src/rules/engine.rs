@@ -20,10 +20,11 @@ const CHECKS: [&str; 8] = [
     "lines_subset",
 ];
 
-/// 规则 JSON 里引擎要用到的字段。`title`、`severity` 只在校验时看，不在这里。
+/// 规则 JSON 里引擎要用到的字段。`severity` 单独校验。
 #[derive(Debug, Deserialize)]
 struct RawRule {
     id: String,
+    title: String,
     ticket_types: Vec<String>,
     check: String,
     params: Value,
@@ -36,6 +37,7 @@ struct RawRule {
 #[derive(Debug, Clone)]
 pub struct Rule {
     pub id: String,
+    pub title: String,
     pub ticket_types: Vec<String>,
     pub check: String,
     pub params: Value,
@@ -247,8 +249,8 @@ fn check_before(ticket: &Ticket, params: &Value) -> Vec<Value> {
             serde_json::json!({
                 "a": last_segment(pair[0].0),
                 "b": last_segment(pair[1].0),
-                "a_time": pair[0].1,
-                "b_time": pair[1].1,
+                "a_time": pair[0].1.replace('T', " "),
+                "b_time": pair[1].1.replace('T', " "),
             })
         })
         .collect()
@@ -390,6 +392,7 @@ pub fn parse_rule(label: &str, entry: Value) -> Result<Rule, DataError> {
         serde_json::from_value(entry).map_err(|err| DataError(format!("{label} 字段类型不对（{err}）")))?;
     Ok(Rule {
         id: rule.id,
+        title: rule.title,
         ticket_types: rule.ticket_types,
         check: rule.check,
         params: rule.params,
@@ -475,10 +478,14 @@ pub fn run_rules(ticket: &Ticket, rules: &[Rule]) -> Vec<Finding> {
                 severity,
                 message: render_message(&rule.message, &violation),
                 basis: rule.basis.clone(),
-                evidence,
+                evidence: evidence.clone(),
                 confidence: 1.0,
                 needs_review: severity != Severity::Error,
                 scenario_id: None,
+                title: rule.title.clone(),
+                ticket_says: evidence,
+                typical_text: String::new(),
+                unreviewed: rule.status == "draft",
             });
         }
     }
