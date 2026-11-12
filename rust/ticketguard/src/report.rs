@@ -8,6 +8,9 @@ use serde_json::{json, Value};
 pub const TITLE: &str = "工作票预审报告";
 pub const DISCLAIMER: &str = "本报告是机器预审的结果，所列都是需要人工确认的疑点和提示；是否接收或打回，由审票人决定。";
 pub const DRAFT_HEAD: &str = "预审意见（草稿，请核实后使用）：";
+pub const FEEDBACK_NOTE: &str =
+    "反馈里只有每条事项的类别和你的选择，不带票面内容。补充说明里请不要写真实的人名、线路名、设备名和票号。";
+pub const FEEDBACK_CHOICES: [&str; 4] = ["未评价", "属实", "误报", "说不清"];
 pub const MODEL_ROW: &str = "模型复核（措施是不是只是写法不同）";
 pub const MODEL_OFF_RISK: &str = "措施换了说法可能被报成缺少。";
 pub const MODEL_OFF: &str = "这次是规则模式，没有请模型复核。措施换了说法可能被报成缺少。";
@@ -197,10 +200,27 @@ fn checklist(review: &Review, scenario: &Value) -> Vec<Value> {
 pub fn build_report(review: &Review, templates: &[Template], source: &str) -> Value {
     let scenario = scenario_json(review, templates);
     let findings: Vec<Value> = review.findings.iter().map(finding_json).collect();
+    let verdict = verdict(&review.findings);
+    let mode = match &review.model {
+        ModelUse::Off => "规则模式",
+        ModelUse::Done { .. } => "模型模式",
+        ModelUse::Failed(_) => "模型没有用上",
+    };
+    let comparison = if scenario["matched"] == false {
+        "没有找到对应的典票场景".to_string()
+    } else {
+        format!("{}（相似度：{}）", text(&scenario, "label"), text(&scenario, "similarity"))
+    };
+    let feedback = format!(
+        "票审反馈（票审 {}，{mode}）\n结论：{}\n对照：{comparison}",
+        env!("CARGO_PKG_VERSION"),
+        text(&verdict, "headline")
+    );
     json!({
         "title": TITLE, "source": source, "disclaimer": DISCLAIMER, "ticket": ticket_json(review),
-        "verdict": verdict(&review.findings), "checklist": checklist(review, &scenario), "findings": findings,
+        "verdict": verdict, "checklist": checklist(review, &scenario), "findings": findings,
         "scenario": scenario, "draft": draft_text(&review.findings), "limits": LIMITS,
+        "feedback": feedback,
     })
 }
 
@@ -268,6 +288,12 @@ fn filled(value: &Value) -> String {
     }
 }
 
+fn feedback_select(class: &str, item: &str, choices: &[&str]) -> String {
+    let options =
+        choices.iter().map(|choice| format!("<option>{}</option>", escape(choice))).collect::<Vec<_>>().concat();
+    format!("<select class=\"{class}\" data-item=\"{}\" onchange=\"updateFeedback()\">{options}</select>", escape(item))
+}
+
 fn finding_card(finding: &Value) -> String {
     let e = |key: &str| escape(text(finding, key));
     let basis = &finding["basis"];
@@ -300,10 +326,16 @@ fn finding_card(finding: &Value) -> String {
     } else {
         ""
     };
+    let feedback = feedback_select(
+        "fb",
+        &format!("{}｜{}｜{}", text(finding, "group"), text(finding, "title"), text(finding, "label")),
+        &FEEDBACK_CHOICES,
+    );
     format!(
         "<div class=\"finding finding-{}\"><label class=\"pick-label\"><input type=\"checkbox\" class=\"pick\" data-text=\"{}\" onchange=\"updateDraft()\"{checked}> 写进打回意见</label>\
          <div><span class=\"tag\">{}</span> <span class=\"tag\">{}</span></div><h3>{}</h3><p>{}</p>{ticket}{typical}{second}\
-         <p class=\"basis\">依据：{} {}：{}{source}</p>{unreviewed}</div>",
+         <p class=\"basis\">依据：{} {}：{}{source}</p>{unreviewed}\
+         <p class=\"fb-line\">这一条报得对不对（反馈用）：{feedback}</p></div>",
         e("severity"), e("draft_line"), e("label"), e("group"), e("title"), e("message"),
         escape(text(basis, "doc")), escape(text(basis, "clause")), escape(text(basis, "text")),
     )
@@ -399,9 +431,12 @@ th:first-child, td:first-child {{width: 10rem; white-space: nowrap;}}
 .pick-label {{display: block; padding: .5rem 0; cursor: pointer;}}
 .pick {{width: 1.25rem; height: 1.25rem; vertical-align: middle;}}
 textarea {{width: 100%; min-height: 12rem; font: inherit; padding: .75rem; border: 1px solid #d9e2ec;}}
+textarea.short {{min-height: 5rem;}}
+select {{font: inherit; padding: .2rem;}}
+.fb-line {{color: #52606d; font-size: .875rem; margin-top: .75rem;}}
 button {{font: inherit; padding: .5rem 1rem; margin: .5rem .5rem 0 0; border: 1px solid #52606d; background: #fff; color: #1f2933; cursor: pointer;}}
 ul {{padding-left: 1.5rem;}}
-@media print {{body {{background: #fff;}} main {{max-width: none; margin: 0; padding: 0;}} button {{display: none;}} .finding, section, .verdict {{page-break-inside: avoid;}}}}
+@media print {{body {{background: #fff;}} main {{max-width: none; margin: 0; padding: 0;}} button, .fb-line, #feedback-section {{display: none;}} .finding, section, .verdict {{page-break-inside: avoid;}}}}
 @media (max-width: 640px) {{main {{margin: .75rem auto; padding: 0 .5rem;}} section, .verdict {{padding: .75rem;}} .finding {{padding: .6rem;}} th, td {{padding: .35rem;}} th:first-child, td:first-child {{width: 8rem; font-size: .8rem;}}}}
 </style></head><body><main>
 <section id="ticket"><h1>{title}</h1><p class="number">票号：{number}</p><p>票种：{ticket_type}</p><p>计划工作时间：{plan_start} 至 {plan_end}<br>工作负责人：{leader}　总人数：{crew_size}</p><ul>{tasks}</ul></section>
@@ -410,6 +445,7 @@ ul {{padding-left: 1.5rem;}}
 <section id="findings"><h2>需要确认的事项</h2>{findings}</section>
 <section id="draft-section"><h2>打回意见草稿</h2><p>草稿由上面勾选的事项拼成，可以直接修改。是否打回由你决定。</p><textarea id="draft" aria-label="打回意见草稿">{draft}</textarea><button type="button" onclick="copyDraft()">复制草稿</button><button type="button" onclick="window.print()">打印报告</button></section>
 <section id="scenario"><h2>对照的典票场景</h2>{scenario}</section>
+<section id="feedback-section"><h2>给开发者的反馈</h2><p>试用时请顺手做三件事：在上面每条事项下选“属实 / 误报 / 说不清”；在这里选对照的场景对不对；把机器漏掉的问题写在补充说明里。然后点“复制反馈”，把文字交给开发者。</p><p class="secondary">{feedback_note}</p><p>对照的典票场景对不对：{scene_choice}</p><p>补充说明（机器漏掉了什么、哪里看不懂）：</p><textarea id="note" class="short" aria-label="补充说明" onkeyup="updateFeedback()" onchange="updateFeedback()"></textarea><p>反馈内容：</p><textarea id="feedback" aria-label="反馈内容" readonly></textarea><button type="button" onclick="copyFeedback()">复制反馈</button></section>
 <section id="limits"><h2>机器的边界</h2><p>{disclaimer}</p><ul>{limits}</ul><p class="secondary">报告对应的文件：{source}</p></section>
 </main><script>
 function updateDraft() {{
@@ -426,6 +462,23 @@ function copyDraft() {{
     document.getElementById('draft').select();
     document.execCommand('copy');
 }}
+function updateFeedback() {{
+    var items = document.querySelectorAll('select.fb');
+    var lines = [{feedback_head}];
+    for (var i = 0; i < items.length; i++) {{
+        lines.push((i + 1) + '. ' + items[i].getAttribute('data-item') + {separator} + items[i].value);
+    }}
+    var scene = document.querySelector('select.fb-scene');
+    lines.push(scene.getAttribute('data-item') + scene.value);
+    lines.push({note_head} + document.getElementById('note').value);
+    document.getElementById('feedback').value = lines.join('\n');
+}}
+function copyFeedback() {{
+    updateFeedback();
+    document.getElementById('feedback').select();
+    document.execCommand('copy');
+}}
+updateFeedback();
 </script></body></html>"#,
         number = filled(&ticket["number"]),
         ticket_type = filled(&ticket["type"]),
@@ -440,5 +493,10 @@ function copyDraft() {{
         disclaimer = escape(text(report, "disclaimer")),
         source = escape(text(report, "source")),
         draft_head = json_ascii(DRAFT_HEAD),
+        feedback_note = escape(FEEDBACK_NOTE),
+        scene_choice = feedback_select("fb-scene", "对照的典票场景对不对：", &["未评价", "对", "不对", "说不清"]),
+        feedback_head = json_ascii(text(report, "feedback")),
+        separator = json_ascii("｜"),
+        note_head = json_ascii("补充："),
     )
 }
