@@ -22,12 +22,20 @@ RUST_FORBIDDEN = [
     (r"\b(todo|unimplemented)!\s*\(", "todo!() / unimplemented!()"),
     (r"\bdbg!\s*\(", "遗留 dbg!()"),
     (r"\b(TODO|FIXME|XXX)\b", "遗留 TODO"),
-    (r"\bstd::net\b|\bTcpStream\b|\bTcpListener\b|\bUdpSocket\b", "网络（红线 5：运行时零联网）"),
     (r"\b(reqwest|hyper|ureq|tokio|async_std|isahc|curl)::", "网络 / 异步库"),
     (r"\b(log|tracing)::", "日志库（命令行要输出就 println! / eprintln!）"),
     (r"#!?\[allow\(", "#[allow(...)] 压警告（改代码，不要压警告）"),
 ]
-# 启动外部进程只允许命令行入口用（打开浏览器看报告）
+# 红线 5：运行时零联网，唯一的例外是连本机 127.0.0.1 上的推理服务（ADR-0008）。
+# 只有 NET_FILE 这一个文件可以用 std::net，而且它的全文要过 check_net_file。
+RUST_NET = [(r"\bstd::net\b|\bTcpStream\b|\bTcpListener\b|\bUdpSocket\b", "网络（红线 5：运行时零联网）")]
+NET_FILE = "rust/tg/src/model.rs"
+NET_FILE_FORBIDDEN = [
+    (r"\bUdpSocket\b|\bToSocketAddrs\b|\blookup_host\b|\bto_socket_addrs\b|\bSocketAddr\b|\bIpv6Addr\b",
+     "只能用 Ipv4Addr::LOCALHOST 连本机，不做主机名解析"),
+    (r"\b(?!127\.0\.0\.1\b)\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b|localhost|UNSPECIFIED", "出现了 127.0.0.1 以外的地址"),
+]
+# 启动外部进程只允许命令行入口用（打开浏览器看报告、启动本机的模型程序）
 RUST_FORBIDDEN_IN_CORE = [
     (r"\bprocess::Command\b|\bCommand::new\b", "核心库不得启动外部进程"),
 ]
@@ -89,6 +97,21 @@ def scan(path: str, lines: list[str], forbidden: list, warn: list, fails: list[s
             warns.append(f"{path}：{why} ×{n}")
 
 
+def check_net_file(fails: list[str]) -> None:
+    """模型程序的启动和提问：每一处 connect / bind 都必须写在 Ipv4Addr::LOCALHOST 上。检查全文，不只是新增行。"""
+    path = ROOT / NET_FILE
+    if not path.exists():
+        return
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if line.strip().startswith("//"):
+            continue
+        if re.search(r"\b(connect|connect_timeout|bind)\s*\(", line) and "Ipv4Addr::LOCALHOST" not in line:
+            fails.append(f"{NET_FILE}:{number}：connect / bind 必须和 Ipv4Addr::LOCALHOST 写在同一行（红线 5）→ {line.strip()[:80]}")
+        for pat, why in NET_FILE_FORBIDDEN:
+            if re.search(pat, line):
+                fails.append(f"{NET_FILE}:{number}：{why} → {line.strip()[:80]}")
+
+
 def crate_names(manifest: Path) -> set[str]:
     """Cargo.toml 里各个 dependencies 段声明的依赖名。"""
     names: set[str] = set()
@@ -147,7 +170,8 @@ def main(task_id: str) -> int:
         if f.startswith(("rust/ticketguard/", "rust/tg/")):
             src_added += len(lines)
             core_only = RUST_FORBIDDEN_IN_CORE if f.startswith("rust/ticketguard/") else []
-            scan(f, lines, RUST_FORBIDDEN + core_only, RUST_WARN, fails, warns)
+            net = [] if f == NET_FILE else RUST_NET
+            scan(f, lines, RUST_FORBIDDEN + net + core_only, RUST_WARN, fails, warns)
         elif f.startswith("rust/tests/"):
             tests_added += len(lines)
 
@@ -162,6 +186,7 @@ def main(task_id: str) -> int:
     if tests_added > budget_tests:
         fails.append(f"tests 新增 {tests_added} 行，超出预算 {budget_tests}")
 
+    check_net_file(fails)
     run_cargo(fails)
 
     print(f"== 门禁 {task_id} ({card.name}) 基线 {base[:8]}")

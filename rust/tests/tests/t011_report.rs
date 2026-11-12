@@ -13,7 +13,7 @@ use common::{repo_root, snapshot, ticket, Snapshot};
 use serde_json::Value;
 use ticketguard::entities::load_lexicon;
 use ticketguard::report::{
-    build_report, draft_text, label, render_html, DISCLAIMER, DRAFT_HEAD, LIMITS, MANUAL_ITEMS, TITLE,
+    build_report, draft_text, label, render_html, DISCLAIMER, DRAFT_HEAD, LIMITS, MANUAL_ITEMS, MODEL_ROW, TITLE,
 };
 use ticketguard::review::{review_text, scenario_number};
 use ticketguard::rules::load_rules;
@@ -162,11 +162,12 @@ fn checklist_says_what_was_checked() {
     let names: Vec<&str> = list(&clean["checklist"]).iter().map(|row| text(row, "name")).collect();
     assert_eq!(
         names,
-        ["票面必填与签名", "人员与人数", "时间顺序", "工作地点", MEASURES, "机器查不了的项目"],
+        ["票面必填与签名", "人员与人数", "时间顺序", "工作地点", MEASURES, MODEL_ROW, "机器查不了的项目"],
         "第一种票没有适用的“特殊作业要求”规则，这一组不应出现"
     );
     let statuses: Vec<&str> = list(&clean["checklist"]).iter().map(|row| text(row, "status")).collect();
-    assert_eq!(statuses, ["checked", "checked", "checked", "checked", "checked", "skipped"]);
+    // 规则模式下“模型复核”一行是“机器没查”（T-013）
+    assert_eq!(statuses, ["checked", "checked", "checked", "checked", "checked", "skipped", "skipped"]);
     for entry in list(&clean["checklist"]) {
         assert_eq!(keys(entry), ["name", "status", "detail"]);
     }
@@ -223,7 +224,8 @@ fn rule_finding_fields() {
             "draft_line",
             "evidence",
             "confidence",
-            "scenario_id"
+            "scenario_id",
+            "second"
         ]
     );
     assert_eq!(keys(&crew["basis"]), ["doc", "clause", "text", "source"]);
