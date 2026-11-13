@@ -7,50 +7,68 @@
 <title>票审 · 配电工作票预审</title>
 <style>
 * {box-sizing: border-box;}
-html, body {height: 100%;}
 body {margin: 0; background: #f5f7fa; color: #1f2933; font: 16px/1.7 "Microsoft YaHei", "PingFang SC", sans-serif;}
+body.fixed {overflow: hidden;}
 button, textarea, input {font: inherit; color: inherit;}
-.top {background: #102a43; color: #fff; padding: .6rem 1.25rem; overflow: hidden;}
-.top h1 {float: left; margin: 0; font-size: 1.1rem; font-weight: bold; line-height: 2.2rem;}
-.top h1 small {font-weight: normal; color: #bcccdc; font-size: .875rem; margin-left: .75rem;}
-.top .right {float: right; line-height: 2.2rem; font-size: .875rem; color: #bcccdc;}
-.top button {margin-left: 1rem; background: transparent; color: #fff; border: 1px solid #829ab1; padding: .1rem .9rem; cursor: pointer;}
+p {margin: 0 0 .75rem;}
+h2 {margin: 0 0 .75rem; font-size: 1.15rem;}
+.muted {color: #52606d; font-size: .875rem;}
+
+.top {background: #102a43; color: #fff; padding: 0 1.25rem; overflow: hidden; height: 3.4rem; line-height: 3.4rem;}
+.top h1 {float: left; margin: 0 2rem 0 0; font-size: 1.15rem;}
+.top .nav {float: left;}
+.top .nav button {background: transparent; border: 0; border-bottom: 3px solid transparent; color: #bcccdc; height: 3.4rem; padding: 0 1rem; cursor: pointer;}
+.top .nav button.on {color: #fff; border-bottom-color: #fff;}
+.top .right {float: right; font-size: .875rem; color: #bcccdc;}
+.top .right button {margin-left: 1rem; background: transparent; color: #fff; border: 1px solid #829ab1; padding: .1rem .9rem; line-height: 1.7; cursor: pointer;}
 .top button:hover {background: #243b53;}
+
 main {display: block; max-width: 60rem; margin: 1.5rem auto; padding: 0 1rem;}
 .card {background: #fff; border: 1px solid #d9e2ec; padding: 1.5rem; margin-bottom: 1.25rem;}
-h2 {margin: 0 0 .75rem; font-size: 1.15rem;}
-h2 .step {display: inline-block; width: 1.7rem; height: 1.7rem; line-height: 1.7rem; margin-right: .5rem; text-align: center; background: #102a43; color: #fff; border-radius: 50%; font-size: .95rem;}
-p {margin: 0 0 .75rem;}
-.muted {color: #52606d; font-size: .875rem;}
-#text {display: block; width: 100%; height: 14rem; padding: .75rem; border: 1px solid #9fb3c8; resize: vertical; line-height: 1.5; font-size: .95rem; background: #fff;}
-#text.over {border: 2px dashed #1d4ed8; background: #eff6ff;}
-.row {margin-top: .75rem;}
 .btn {display: inline-block; background: #fff; border: 1px solid #9fb3c8; padding: .35rem 1rem; cursor: pointer;}
 .btn:hover {background: #f0f4f8;}
+.btn[disabled] {color: #9fb3c8; cursor: default;}
 .primary {background: #1d4ed8; border-color: #1d4ed8; color: #fff; font-size: 1.1rem; padding: .6rem 2.5rem;}
 .primary:hover {background: #1e40af;}
-.primary[disabled] {background: #9fb3c8; border-color: #9fb3c8; cursor: default;}
+.primary[disabled] {background: #9fb3c8; border-color: #9fb3c8; color: #fff;}
+.warn {background: #fff7ed; border-left: 6px solid #b45309; padding: .75rem 1rem; margin: .75rem 0 0;}
+
+/* 放入票面 */
+#text {display: block; width: 100%; height: 16rem; padding: .75rem; border: 1px solid #9fb3c8; resize: vertical; line-height: 1.5; font-size: .95rem; background: #fff;}
+#text.over {border: 2px dashed #1d4ed8; background: #eff6ff;}
+.row {margin-top: .75rem;}
 #picker {display: none;}
 .chip {display: inline-block; margin: .25rem .5rem .25rem 0; padding: .15rem .75rem; border: 1px solid #bcccdc; background: #f0f4f8; font-size: .875rem;}
 .chip button {border: 0; background: transparent; cursor: pointer; color: #52606d; padding: 0 0 0 .5rem;}
 a.example {display: inline-block; margin: .15rem 1rem .15rem 0; color: #1d4ed8; cursor: pointer; text-decoration: underline; font-size: .875rem;}
-.mode {display: block; position: relative; border: 2px solid #d9e2ec; padding: .9rem 1rem .9rem 2.75rem; margin-bottom: .75rem; cursor: pointer;}
-.mode input {position: absolute; left: 1rem; top: 1.25rem;}
-.mode.on {border-color: #1d4ed8; background: #eff6ff;}
-.mode.off {cursor: default; background: #f5f7fa; color: #829ab1;}
-.mode b {font-size: 1.05rem;}
-.mode span {display: block; font-size: .9rem;}
-.mode .state {color: #b45309;}
-.warn {background: #fff7ed; border-left: 6px solid #b45309; padding: .75rem 1rem; margin-bottom: 1rem;}
 #go-row {text-align: center; margin: 1.5rem 0 .5rem;}
+.how {max-width: 44rem; margin: 1rem auto 0; text-align: left;}
+
+/* 流水线的三步 */
+.steps {display: table; width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: .6rem 0; margin: 0 -.6rem;}
+.step {display: table-cell; vertical-align: top; background: #fff; border: 1px solid #d9e2ec; border-top: 4px solid #bcccdc; padding: .6rem .9rem;}
+.step small {display: block; color: #52606d; font-size: .8rem;}
+.step b {display: block; font-size: 1rem; line-height: 1.5;}
+.step span {display: block; font-size: .875rem; color: #52606d; line-height: 1.5;}
+.step.doing {border-top-color: #1d4ed8;}
+.step.ok {border-top-color: #15803d;}
+.step.skip {border-top-color: #829ab1;}
+.step.bad {border-top-color: #b45309;}
+.step.issues {border-top-color: #b45309; background: #fff7ed;}
+.step.no_scenario {border-top-color: #52606d; background: #f0f4f8;}
+.step.notes {border-top-color: #1d4ed8; background: #eff6ff;}
+.step.clear {border-top-color: #15803d; background: #f0fdf4;}
+
+/* 结果 */
 #results {display: none;}
-body.busy {overflow: hidden;}
 #bar {background: #fff; border-bottom: 1px solid #d9e2ec; padding: .5rem 1.25rem; overflow: hidden;}
 #bar .btn {float: left; margin-right: 1rem;}
 #bar p {margin: 0; line-height: 2.3rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;}
-#list {float: left; width: 19rem; padding: 1rem; overflow-y: auto;}
-#pane {margin-left: 19rem; padding: 1rem 1rem 0 0;}
-#frame {display: block; width: 100%; border: 1px solid #d9e2ec; background: #fff;}
+#list {float: left; width: 17rem; padding: 1rem 0 1rem 1rem; overflow-y: auto;}
+#pane {padding: 1rem;}
+#pane.with-list {margin-left: 17rem;}
+#frame {display: block; width: 100%; border: 1px solid #d9e2ec; background: #fff; margin-top: .75rem;}
+#message {display: none; background: #fff; border: 1px solid #d9e2ec; padding: 1.5rem; margin-top: .75rem;}
 .item {background: #fff; border: 1px solid #d9e2ec; border-left: 6px solid #9fb3c8; padding: .6rem .75rem; margin-bottom: .6rem; cursor: pointer; word-wrap: break-word;}
 .item.sel {outline: 2px solid #1d4ed8;}
 .item b {display: block; font-size: .95rem;}
@@ -60,26 +78,48 @@ body.busy {overflow: hidden;}
 .item.notes {border-left-color: #1d4ed8;}
 .item.clear {border-left-color: #15803d;}
 .item.failed {border-left-color: #b42318;}
-.item.failed span {color: #b42318;}
-#message {display: none; background: #fff; border: 1px solid #d9e2ec; padding: 2rem;}
+
+/* 准确度 */
+#accuracy {display: none;}
+.meters {width: 100%; border-collapse: collapse; margin: .75rem 0 0;}
+.meters td {padding: .55rem 0; vertical-align: middle; border-top: 1px solid #e6ecf2;}
+.meters .name {width: 38%; padding-right: 1rem;}
+.meters .figure {width: 11.5rem; padding-left: 1rem; text-align: right; white-space: nowrap;}
+.meters .figure b {font-size: 1.15rem;}
+.meters .figure small {color: #52606d; font-size: .875rem; margin-left: .4rem;}
+.track {height: .75rem; background: #e6ecf2; border-radius: 4px; overflow: hidden;}
+.fill {height: .75rem; background: #1d4ed8; border-radius: 4px;}
+.fill.wrong {background: #b45309;}
+.meters .note td {border-top: 0; padding: 0 0 .6rem; color: #52606d; font-size: .875rem;}
+.verdict-word {display: inline-block; font-size: .8rem; color: #52606d; margin-left: .4rem;}
+ul.plain {margin: 0; padding-left: 1.25rem;}
+ul.plain li {margin-bottom: .4rem;}
+
 #gone {display: none; max-width: 40rem; margin: 5rem auto; text-align: center;}
 @media (max-width: 52rem) {
-  #list {float: none; width: auto; max-height: 12rem;}
-  #pane {margin-left: 0; padding: 0 1rem;}
+  #list {float: none; width: auto; max-height: 11rem; padding: 1rem 1rem 0;}
+  #pane.with-list {margin-left: 0;}
+  .steps, .step {display: block; margin: 0;}
+  .step {margin-bottom: .5rem;}
+  .meters .name {width: 45%;}
+  .meters .figure {width: 7.5rem;}
+  .meters .figure small {display: block; margin: 0;}
 }
 </style>
 </head>
 <body>
 <div class="top">
-  <h1>票审<small>配电第一种工作票 · 离线预审</small></h1>
+  <h1>票审</h1>
+  <div class="nav" id="nav">
+    <button type="button" id="nav-check" class="on">预审</button>
+    <button type="button" id="nav-accuracy">准确度</button>
+  </div>
   <div class="right"><span id="version"></span><button type="button" id="quit">退出票审</button></div>
 </div>
 
 <main id="input">
-  <p class="muted">只做预审建议：列出的都是“疑似问题”，每条附依据；是否接收或打回由审票人决定。票面只在这台电脑上处理，不联网。</p>
-
   <div class="card">
-    <h2><span class="step">1</span>放入票面</h2>
+    <h2>放入票面</h2>
     <textarea id="text" placeholder="把工作票的票面全文粘贴到这里（在系统里全选、复制，到这里粘贴）。&#10;&#10;也可以把 .txt 文件拖到这个框里。"></textarea>
     <div class="row">
       <button type="button" class="btn" id="pick">选择 .txt 文件…</button>
@@ -93,24 +133,18 @@ body.busy {overflow: hidden;}
     </div>
   </div>
 
-  <div class="card">
-    <h2><span class="step">2</span>选模式</h2>
-    <label class="mode" id="mode-rule">
-      <input type="radio" name="mode" value="rule">
-      <b>规则模式</b>
-      <span>只用规则查，一两秒出结果。同一张票每次结果都一样。</span>
-    </label>
-    <label class="mode" id="mode-model">
-      <input type="radio" name="mode" value="model">
-      <b>模型模式</b>
-      <span>规则查完以后，再请这台电脑上的小模型把“疑似缺少措施”的事项复核一遍：票面上其实有、只是写法和典票不同的，从“疑点”降为“提示”。疑点只会变少，不会变多。每张票多花十几秒，第一张还要等模型启动。</span>
-      <span class="state" id="model-state"></span>
-    </label>
-  </div>
-
   <div id="go-row">
     <button type="button" class="btn primary" id="go" disabled>开始预审</button>
     <p class="muted" id="go-hint" style="margin-top:.5rem">先粘贴票面，或者选择文件。</p>
+  </div>
+
+  <div class="how">
+    <div class="steps">
+      <div class="step"><small>第一步</small><b>规则检查</b><span>人数、时间、地点、签名；对照典票逐栏比安全措施。一两秒。</span></div>
+      <div class="step"><small>第二步</small><b>模型复核</b><span id="how-model"></span></div>
+      <div class="step"><small>第三步</small><b>结论</b><span>列出需要你看的疑点，每条附依据，并写好打回意见草稿。</span></div>
+    </div>
+    <p class="muted" style="margin-top:1rem">只做预审建议：是否接收或打回由审票人决定。票面只在这台电脑上处理，不联网。这两步在考题上的成绩见上方“准确度”。</p>
   </div>
 </main>
 
@@ -122,11 +156,24 @@ body.busy {overflow: hidden;}
   </div>
   <div id="list"></div>
   <div id="pane">
-    <div class="warn" id="model-note" style="display:none"></div>
+    <div class="steps" id="steps">
+      <div class="step" id="step1"><small>第一步　规则检查</small><b></b><span></span></div>
+      <div class="step" id="step2"><small>第二步　模型复核</small><b></b><span></span></div>
+      <div class="step" id="step3"><small>第三步　结论</small><b></b><span></span></div>
+    </div>
     <div id="message"></div>
     <iframe id="frame" title="预审报告"></iframe>
   </div>
 </div>
+
+<main id="accuracy">
+  <div class="card">
+    <h2>机器有多准</h2>
+    <p>单看一张真实的票，机器没法知道自己对不对。所以拿一批<b>知道正确答案的考题</b>让它做：先过规则，再过模型，数它对了多少。下面是成绩单。</p>
+    <p class="muted" id="accuracy-meta"></p>
+  </div>
+  <div id="accuracy-body"></div>
+</main>
 
 <div id="gone" class="card"><h2 id="gone-title"></h2><p id="gone-text"></p></div>
 
@@ -135,13 +182,22 @@ body.busy {overflow: hidden;}
   function $(id) { return document.getElementById(id); }
   function show(id, on) { $(id).style.display = on ? "block" : "none"; }
   function setText(node, value) { node.innerHTML = ""; node.appendChild(document.createTextNode(value)); }
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) { node.className = className; }
+    if (text !== undefined) { node.appendChild(document.createTextNode(text)); }
+    return node;
+  }
 
-  var files = [];      // 选中或拖进来的文件：{name, text}
-  var jobs = [];       // 这一批要审的票：{name, text, state, result, seconds}
+  var files = [];        // 选中或拖进来的文件：{name, text}
+  var jobs = [];         // 这一批票：{name, text, state, rule, final, error, modelError, seconds}
   var selected = -1;
   var modelState = "missing";
+  var modelNote = "";
   var timer = null;
   var closed = false;
+  var view = "input";    // 预审这一页现在显示的是 input 还是 results
+  var accuracyLoaded = false;
 
   // 所有请求都发给这个页面自己所在的地址（本机），相对路径里已经带着这次运行的口令
   function call(method, path, body, done) {
@@ -162,13 +218,25 @@ body.busy {overflow: hidden;}
     if (closed) { return; }
     closed = true;
     if (timer) { clearInterval(timer); }
-    show("input", false); show("results", false); show("gone", true);
+    show("input", false); show("results", false); show("accuracy", false); show("gone", true);
     document.body.className = "";
-    $("quit").style.display = "none";
+    $("quit").style.display = "none"; $("nav").style.display = "none";
     setText($("gone-title"), title); setText($("gone-text"), text);
   }
 
-  // ---------- 第 1 步：票面 ----------
+  // ---------- 页面切换 ----------
+  function showView(name) {
+    show("input", name === "input"); show("results", name === "results"); show("accuracy", name === "accuracy");
+    document.body.className = name === "results" ? "fixed" : "";
+    $("nav-check").className = name === "accuracy" ? "" : "on";
+    $("nav-accuracy").className = name === "accuracy" ? "on" : "";
+    if (name !== "accuracy") { view = name; }
+    if (name === "results") { layout(); }
+  }
+  $("nav-check").onclick = function () { showView(view); };
+  $("nav-accuracy").onclick = function () { showView("accuracy"); loadAccuracy(); };
+
+  // ---------- 放入票面 ----------
   function refreshGo() {
     var count = files.length + ($("text").value.replace(/\s/g, "") ? 1 : 0);
     $("go").disabled = count === 0;
@@ -179,14 +247,11 @@ body.busy {overflow: hidden;}
     var box = $("files");
     box.innerHTML = "";
     for (var i = 0; i < files.length; i++) {
-      var chip = document.createElement("span");
-      chip.className = "chip";
-      chip.appendChild(document.createTextNode(files[i].name));
-      var remove = document.createElement("button");
+      var chip = el("span", "chip", files[i].name);
+      var remove = el("button", "", "×");
       remove.type = "button";
       remove.setAttribute("aria-label", "去掉 " + files[i].name);
       remove.setAttribute("data-index", String(i));
-      remove.appendChild(document.createTextNode("×"));
       remove.onclick = function () { files.splice(Number(this.getAttribute("data-index")), 1); drawFiles(); };
       chip.appendChild(remove);
       box.appendChild(chip);
@@ -244,118 +309,169 @@ body.busy {overflow: hidden;}
     if (!list.length) { return; }
     show("examples-row", true);
     for (var i = 0; i < list.length; i++) {
-      var link = document.createElement("a");
-      link.className = "example";
+      var link = el("a", "example", list[i].name.replace(/\.txt$/i, ""));
       link.setAttribute("data-index", String(i));
-      link.appendChild(document.createTextNode(list[i].name.replace(/\.txt$/i, "")));
       link.onclick = function () { $("text").value = list[Number(this.getAttribute("data-index"))].text; refreshGo(); $("text").scrollTop = 0; };
       $("examples").appendChild(link);
     }
   }
 
-  // ---------- 第 2 步：模式 ----------
-  function radio(value) { return $("mode-" + value).getElementsByTagName("input")[0]; }
-  function mode() { return radio("model").checked ? "model" : "rule"; }
-  function choose(value) {
-    radio(value).checked = true;
-    $("mode-rule").className = "mode" + (value === "rule" ? " on" : "");
-    $("mode-model").className = "mode" + (modelState === "missing" ? " off" : value === "model" ? " on" : "");
-    try { localStorage.setItem("tg-mode", value); } catch (e) { /* 记不住上次的选择也不影响使用 */ }
-  }
-  radio("rule").onclick = function () { choose("rule"); };
-  radio("model").onclick = function () { choose("model"); };
-
   function applyStatus(status) {
     setText($("version"), "版本 " + status.version);
     modelState = status.model;
-    var note = "";
-    if (status.model === "missing") { note = "这台电脑上用不了：" + status.model_note; }
-    if (status.model === "failed") { note = "上一次没有用成：" + status.model_note + "。可以再试，也可以先用规则模式。"; }
-    if (status.model === "ready") { note = "模型已经启动，现在不用再等。"; }
-    setText($("model-state"), note);
-    radio("model").disabled = status.model === "missing";
-    var last = null;
-    try { last = localStorage.getItem("tg-mode"); } catch (e) { last = null; }
-    choose(status.model === "missing" ? "rule" : last === "rule" ? "rule" : "model");
+    modelNote = status.model_note;
+    var text = "规则报了“可能缺少措施”才做：请这台电脑上的小模型看票面上是不是其实写了、只是写法和典票不同。是的话，疑点降为提示。第一次要等十几秒到一分钟。";
+    if (status.model === "missing") { text = "这台电脑上没有模型（" + status.model_note + "）。措施换了说法时可能被报成“缺少”，请人工排除。"; }
+    if (status.model === "failed") { text = "这次没有用成：" + status.model_note + "。措施换了说法时可能被报成“缺少”。重新打开票审会再试。"; }
+    if (status.model === "ready") { text = "规则报了“可能缺少措施”才做。模型已经启动，每张票十几秒以内。"; }
+    setText($("how-model"), text);
   }
 
-  // ---------- 预审 ----------
-  function frameHeight() {
-    var top = $("bar").offsetHeight + document.querySelector(".top").offsetHeight;
-    var height = (window.innerHeight || document.documentElement.clientHeight) - top;
+  // ---------- 流水线 ----------
+  function layout() {
+    var height = (window.innerHeight || document.documentElement.clientHeight) - $("bar").offsetHeight - document.querySelector(".top").offsetHeight;
+    var many = jobs.length > 1;
+    $("list").style.display = many ? "block" : "none";
     $("list").style.height = height + "px";
-    $("frame").style.height = (height - 16 - $("model-note").offsetHeight) + "px";
+    $("pane").className = many ? "with-list" : "";
+    var rest = height - $("steps").offsetHeight - 44;
+    $("frame").style.height = (rest < 240 ? 240 : rest) + "px";
   }
-  window.onresize = frameHeight;
+  window.onresize = function () { if (view === "results") { layout(); } };
+
+  function setStep(id, state, title, detail) {
+    var box = $(id);
+    box.className = "step " + state;
+    setText(box.getElementsByTagName("b")[0], title);
+    setText(box.getElementsByTagName("span")[0], detail);
+  }
+
+  function countText(result) {
+    if (result.level === "no_scenario") { return "没有找到对应的典票场景"; }
+    if (result.issues === 0 && result.notes === 0) { return "没有发现疑点"; }
+    var parts = [];
+    if (result.issues > 0) { parts.push(result.issues + " 处疑点"); }
+    if (result.notes > 0) { parts.push(result.notes + " 条提示"); }
+    return "发现 " + parts.join("，");
+  }
+
+  function drawSteps(job) {
+    var rule = job.rule, last = job.final;
+    if (job.state === "waiting") {
+      setStep("step1", "", "排队中", ""); setStep("step2", "", "—", ""); setStep("step3", "", "—", ""); return;
+    }
+    if (job.state === "failed") {
+      setStep("step1", "bad", "没能预审", "见下方原因"); setStep("step2", "", "—", ""); setStep("step3", "", "—", ""); return;
+    }
+    if (job.state === "rule") {
+      setStep("step1", "doing", "正在检查…", ""); setStep("step2", "", "—", ""); setStep("step3", "", "—", ""); return;
+    }
+    setStep("step1", "ok", countText(rule), rule.pending > 0 ? "其中 " + rule.pending + " 处是“可能缺少措施”，交给第二步复核" : "没有“可能缺少措施”的事项");
+    if (job.state === "model") {
+      if (rule.pending === 0) { setStep("step2", "doing", "…", ""); } else {
+        setStep("step2", "doing", "正在复核… " + job.seconds + " 秒",
+          modelState === "ready" ? "逐条比对票面上同一栏的措施" : "第一次要启动模型，十几秒到一分钟。请不要关掉那个黑色的窗口");
+      }
+      setStep("step3", "", "—", "等第二步");
+      return;
+    }
+    var end = last || rule;
+    if (job.modelError) {
+      setStep("step2", "bad", "没有做成", job.modelError + "。结论只用了规则");
+    } else if (last.model === "failed") {
+      setStep("step2", "bad", "没有做成", last.model_note + "。结论只用了规则，措施换了说法可能被报成缺少");
+    } else if (rule.pending === 0) {
+      setStep("step2", "skip", "不需要", "规则没有报“可能缺少措施”，没有启动模型");
+    } else if (last.reworded > 0) {
+      setStep("step2", "ok", "降了 " + last.reworded + " 处", "复核了 " + rule.pending + " 处，认为 " + last.reworded + " 处票面上其实写了、只是写法不同，已从疑点降为提示");
+    } else {
+      setStep("step2", "ok", "维持原判", "复核了 " + rule.pending + " 处，没有发现只是写法不同的");
+    }
+    var need = end.issues > 0 ? "需要你看的疑点 " + end.issues + " 处" + (end.notes > 0 ? "，另有 " + end.notes + " 条提示" : "")
+      : end.notes > 0 ? "有 " + end.notes + " 条提示请过目" : "机器只查了报告清单里的项目，其余请人工审核";
+    setStep("step3", end.level, end.headline, need);
+  }
+
+  function stateLine(job) {
+    if (job.state === "waiting") { return "排队中"; }
+    if (job.state === "rule") { return "规则检查中…"; }
+    if (job.state === "model") { return job.rule.pending > 0 ? "模型复核中… " + job.seconds + " 秒" : "规则检查中…"; }
+    if (job.state === "failed") { return "没能预审"; }
+    return (job.final || job.rule).headline;
+  }
 
   function drawList() {
     var box = $("list");
     box.innerHTML = "";
     for (var i = 0; i < jobs.length; i++) {
       var job = jobs[i];
-      var item = document.createElement("div");
-      var level = job.state === "done" ? job.result.level : job.state === "failed" ? "failed" : "";
-      item.className = "item " + level + (i === selected ? " sel" : "");
+      var level = job.state === "done" ? (job.final || job.rule).level : job.state === "failed" ? "failed" : "";
+      var item = el("div", "item " + level + (i === selected ? " sel" : ""));
       item.setAttribute("data-index", String(i));
-      var title = document.createElement("b");
-      title.appendChild(document.createTextNode(job.name));
-      var line = document.createElement("span");
-      var text = "排队中";
-      if (job.state === "running") { text = "正在预审… " + job.seconds + " 秒"; }
-      if (job.state === "done") { text = job.result.headline; }
-      if (job.state === "failed") { text = "没能预审"; }
-      line.appendChild(document.createTextNode(text));
-      item.appendChild(title); item.appendChild(line);
+      item.appendChild(el("b", "", job.name));
+      item.appendChild(el("span", "", stateLine(job)));
       item.onclick = function () { select(Number(this.getAttribute("data-index"))); };
       box.appendChild(item);
     }
   }
 
-  function message(html) { $("message").innerHTML = html; show("message", true); show("frame", false); }
+  function showReport(path) {
+    show("message", false); show("frame", true);
+    if ($("frame").getAttribute("data-shown") !== path) {
+      $("frame").setAttribute("data-shown", path);
+      $("frame").src = path;
+    }
+  }
 
   function select(index) {
     selected = index;
     var job = jobs[index];
-    $("open").style.display = job.state === "done" ? "" : "none";
-    setText($("saved"), job.state === "done" ? "报告已保存：" + job.result.saved : "");
-    if (job.state === "done") {
-      show("message", false); show("frame", true);
-      if ($("frame").getAttribute("data-shown") !== job.result.report) {
-        $("frame").setAttribute("data-shown", job.result.report);
-        $("frame").src = job.result.report;
-      }
-    } else if (job.state === "failed") {
-      $("frame").setAttribute("data-shown", "");
-      message("<h2>这张票没能预审</h2><p></p><p class='muted'>常见原因：粘贴的不是完整的票面（要从“编号”一直到表格结束）；或者这不是配电第一种工作票。</p>");
-      setText($("message").getElementsByTagName("p")[0], job.error);
+    var result = job.final || job.rule;
+    $("open").style.display = result ? "" : "none";
+    setText($("saved"), job.state === "done" ? "报告已保存：" + result.saved : "");
+    drawSteps(job);
+    if (result) {
+      showReport(result.report);
     } else {
       $("frame").setAttribute("data-shown", "");
-      var waiting = mode() === "model" && modelState !== "ready"
-        ? "模型第一次启动要十几秒到一分钟，之后每张票十几秒。请稍等，不要关掉那个黑色的窗口。"
-        : "马上就好。";
-      message("<h2>正在预审…</h2><p class='muted'></p>");
-      setText($("message").getElementsByTagName("p")[0], waiting);
+      show("frame", false); show("message", true);
+      $("message").innerHTML = "";
+      if (job.state === "failed") {
+        $("message").appendChild(el("h2", "", "这张票没能预审"));
+        $("message").appendChild(el("p", "", job.error));
+        $("message").appendChild(el("p", "muted", "常见原因：粘贴的不是完整的票面（要从“编号”一直到表格结束）；或者这不是配电第一种工作票。"));
+      } else {
+        $("message").appendChild(el("p", "muted", job.state === "waiting" ? "前面的票审完就轮到它。" : "马上就好。"));
+      }
     }
     drawList();
-    frameHeight();
+    layout();
   }
+
+  function refresh(index) { if (selected === index) { select(index); } else { drawList(); } }
 
   function runNext() {
     var index = -1;
     for (var i = 0; i < jobs.length; i++) { if (jobs[i].state === "waiting") { index = i; break; } }
     if (index < 0) { clearInterval(timer); timer = null; $("again").disabled = false; return; }
     var job = jobs[index];
-    job.state = "running";
-    job.seconds = 0;
+    job.state = "rule";
     if (selected < 0 || jobs[selected].state !== "done") { select(index); } else { drawList(); }
-    call("POST", "check", {name: job.name, text: job.text, mode: job.mode}, function (result) {
-      if (result.ok) {
-        job.state = "done"; job.result = result;
-        if (job.mode === "model") { modelState = result.model_note ? "failed" : "ready"; }
-        if (result.model_note) { setText($("model-note"), "模型没有用上，这张票只用了规则：" + result.model_note); show("model-note", true); }
-      } else { job.state = "failed"; job.error = result.error; }
-      if (selected === index || selected < 0) { select(index); } else { drawList(); }
-      runNext();
+    call("POST", "check", {name: job.name, text: job.text, stage: "rule"}, function (rule) {
+      if (!rule.ok) { job.state = "failed"; job.error = rule.error; refresh(index); runNext(); return; }
+      job.rule = rule;
+      job.state = "model";
+      job.seconds = 0;
+      refresh(index);
+      call("POST", "check", {name: job.name, text: job.text, stage: "full"}, function (last) {
+        if (last.ok) {
+          job.final = last;
+          if (rule.pending > 0) { modelState = last.model === "done" ? "ready" : "failed"; }
+        } else { job.modelError = last.error; }
+        job.state = "done";
+        refresh(index);
+        runNext();
+      });
     });
   }
 
@@ -370,13 +486,14 @@ body.busy {overflow: hidden;}
     var pasted = $("text").value;
     if (pasted.replace(/\s/g, "")) { jobs.push({name: pastedName(pasted), text: pasted}); }
     for (var i = 0; i < files.length; i++) { jobs.push({name: files[i].name, text: files[i].text}); }
-    for (var k = 0; k < jobs.length; k++) { jobs[k].state = "waiting"; jobs[k].mode = mode(); jobs[k].seconds = 0; }
+    for (var k = 0; k < jobs.length; k++) { jobs[k].state = "waiting"; jobs[k].seconds = 0; }
     selected = -1;
-    show("input", false); show("results", true); show("model-note", false);
-    document.body.className = "busy";
     $("again").disabled = true;
+    showView("results");
     timer = setInterval(function () {
-      for (var j = 0; j < jobs.length; j++) { if (jobs[j].state === "running") { jobs[j].seconds += 1; } }
+      for (var j = 0; j < jobs.length; j++) {
+        if (jobs[j].state === "model") { jobs[j].seconds += 1; if (j === selected) { drawSteps(jobs[j]); } }
+      }
       drawList();
     }, 1000);
     runNext();
@@ -385,11 +502,80 @@ body.busy {overflow: hidden;}
   $("again").onclick = function () {
     files = []; $("text").value = ""; drawFiles(); fileError("");
     $("frame").setAttribute("data-shown", ""); $("frame").src = "about:blank";
-    show("results", false); show("input", true);
-    document.body.className = "";
+    showView("input");
     call("GET", "status", null, function (status) { if (status.version) { applyStatus(status); } });
   };
-  $("open").onclick = function () { if (selected >= 0 && jobs[selected].state === "done") { window.open(jobs[selected].result.report, "_blank"); } };
+  $("open").onclick = function () {
+    var job = selected >= 0 ? jobs[selected] : null;
+    var result = job ? (job.final || job.rule) : null;
+    if (result) { window.open(result.report, "_blank"); }
+  };
+
+  // ---------- 准确度 ----------
+  function percent(hit, total) { return total > 0 ? (Math.round(hit * 1000 / total) / 10) + "%" : "—"; }
+
+  function meterRow(row) {
+    var tr = el("tr");
+    tr.appendChild(el("td", "name", row.name));
+    var middle = el("td");
+    var track = el("div", "track");
+    var fill = el("div", "fill" + (row.want === "zero" ? " wrong" : ""));
+    fill.style.width = (row.total > 0 ? row.hit * 100 / row.total : 0) + "%";
+    track.appendChild(fill);
+    track.title = row.name + "：" + row.hit + " / " + row.total + "（" + percent(row.hit, row.total) + "）";
+    middle.appendChild(track);
+    tr.appendChild(middle);
+    var figure = el("td", "figure");
+    figure.appendChild(el("b", "", row.hit + " / " + row.total));
+    figure.appendChild(el("small", "", row.want === "zero" && row.hit === 0 ? "一道没有" : percent(row.hit, row.total)));
+    tr.appendChild(figure);
+    return tr;
+  }
+
+  function drawAccuracy(data) {
+    var body = $("accuracy-body");
+    body.innerHTML = "";
+    if (!data.sections) {
+      var failed = el("div", "card");
+      failed.appendChild(el("p", "", "成绩单没有读出来：" + (data.error || "文件里没有内容")));
+      body.appendChild(failed);
+      return;
+    }
+    setText($("accuracy-meta"), "实测日期：" + data.measured + "。考题是用典票改出来的，不是真实工作票。");
+    for (var i = 0; i < data.sections.length; i++) {
+      var section = data.sections[i];
+      var card = el("div", "card");
+      card.appendChild(el("h2", "", section.title));
+      card.appendChild(el("p", "muted", "考题：" + section.exam));
+      var table = el("table", "meters");
+      var tbody = el("tbody");
+      for (var k = 0; k < section.rows.length; k++) {
+        tbody.appendChild(meterRow(section.rows[k]));
+        if (section.rows[k].note) {
+          var note = el("tr", "note");
+          var cell = el("td", "", section.rows[k].note);
+          cell.colSpan = 3;
+          note.appendChild(cell);
+          tbody.appendChild(note);
+        }
+      }
+      table.appendChild(tbody);
+      card.appendChild(table);
+      body.appendChild(card);
+    }
+    var limits = el("div", "card");
+    limits.appendChild(el("h2", "", "这些数字不能说明什么"));
+    var list = el("ul", "plain");
+    for (var j = 0; j < data.caveats.length; j++) { list.appendChild(el("li", "", data.caveats[j])); }
+    limits.appendChild(list);
+    body.appendChild(limits);
+  }
+
+  function loadAccuracy() {
+    if (accuracyLoaded) { return; }
+    accuracyLoaded = true;
+    call("GET", "accuracy", null, drawAccuracy);
+  }
 
   $("quit").onclick = function () {
     call("POST", "quit", {}, function () {

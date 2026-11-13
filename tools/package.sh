@@ -17,7 +17,7 @@ fi
 mkdir -p "$out/data" "$out/示例报告"
 cp target/release/tg.exe "$out/票审.exe"
 cp -r data/rules data/templates "$out/data/"
-cp data/harness.json "$out/data/"
+cp data/harness.json data/accuracy.json "$out/data/"
 cp -r tools/package/示例票面 "$out/"
 # 记事本（尤其是旧系统的）只认 CRLF 和带 BOM 的 UTF-8
 for name in 使用说明 反馈表; do
