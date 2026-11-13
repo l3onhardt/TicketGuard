@@ -26,10 +26,10 @@ RUST_FORBIDDEN = [
     (r"\b(log|tracing)::", "日志库（命令行要输出就 println! / eprintln!）"),
     (r"#!?\[allow\(", "#[allow(...)] 压警告（改代码，不要压警告）"),
 ]
-# 红线 5：运行时零联网，唯一的例外是连本机 127.0.0.1 上的推理服务（ADR-0008）。
-# 只有 NET_FILE 这一个文件可以用 std::net，而且它的全文要过 check_net_file。
+# 红线 5：运行时零联网，唯一的例外是本机 127.0.0.1：连本机的推理服务（ADR-0008）、给主界面开只听本机的页面服务（ADR-0009）。
+# 只有 NET_FILES 这两个文件可以用 std::net，而且它们的全文要过 check_net_file。
 RUST_NET = [(r"\bstd::net\b|\bTcpStream\b|\bTcpListener\b|\bUdpSocket\b", "网络（红线 5：运行时零联网）")]
-NET_FILE = "rust/tg/src/model.rs"
+NET_FILES = ["rust/tg/src/model.rs", "rust/tg/src/ui.rs"]
 NET_FILE_FORBIDDEN = [
     (r"\bUdpSocket\b|\bToSocketAddrs\b|\blookup_host\b|\bto_socket_addrs\b|\bSocketAddr\b|\bIpv6Addr\b",
      "只能用 Ipv4Addr::LOCALHOST 连本机，不做主机名解析"),
@@ -98,18 +98,19 @@ def scan(path: str, lines: list[str], forbidden: list, warn: list, fails: list[s
 
 
 def check_net_file(fails: list[str]) -> None:
-    """模型程序的启动和提问：每一处 connect / bind 都必须写在 Ipv4Addr::LOCALHOST 上。检查全文，不只是新增行。"""
-    path = ROOT / NET_FILE
-    if not path.exists():
-        return
-    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-        if line.strip().startswith("//"):
+    """连模型程序、开主界面的页面服务：每一处 connect / bind 都必须写在 Ipv4Addr::LOCALHOST 上。检查全文，不只是新增行。"""
+    for name in NET_FILES:
+        path = ROOT / name
+        if not path.exists():
             continue
-        if re.search(r"\b(connect|connect_timeout|bind)\s*\(", line) and "Ipv4Addr::LOCALHOST" not in line:
-            fails.append(f"{NET_FILE}:{number}：connect / bind 必须和 Ipv4Addr::LOCALHOST 写在同一行（红线 5）→ {line.strip()[:80]}")
-        for pat, why in NET_FILE_FORBIDDEN:
-            if re.search(pat, line):
-                fails.append(f"{NET_FILE}:{number}：{why} → {line.strip()[:80]}")
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if line.strip().startswith("//"):
+                continue
+            if re.search(r"\b(connect|connect_timeout|bind)\s*\(", line) and "Ipv4Addr::LOCALHOST" not in line:
+                fails.append(f"{name}:{number}：connect / bind 必须和 Ipv4Addr::LOCALHOST 写在同一行（红线 5）→ {line.strip()[:80]}")
+            for pat, why in NET_FILE_FORBIDDEN:
+                if re.search(pat, line):
+                    fails.append(f"{name}:{number}：{why} → {line.strip()[:80]}")
 
 
 def crate_names(manifest: Path) -> set[str]:
@@ -170,7 +171,7 @@ def main(task_id: str) -> int:
         if f.startswith(("rust/ticketguard/", "rust/tg/")):
             src_added += len(lines)
             core_only = RUST_FORBIDDEN_IN_CORE if f.startswith("rust/ticketguard/") else []
-            net = [] if f == NET_FILE else RUST_NET
+            net = [] if f in NET_FILES else RUST_NET
             scan(f, lines, RUST_FORBIDDEN + net + core_only, RUST_WARN, fails, warns)
         elif f.startswith("rust/tests/"):
             tests_added += len(lines)
