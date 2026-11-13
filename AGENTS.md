@@ -19,7 +19,7 @@
 2. **不写入侵类代码。** 不写抓包、流量嗅探、绕过登录、爬取生产系统、逆向内网系统协议的代码。数据只从三个渠道来：用户手动导出或粘贴、正式授权的接口、本地文件。
 3. **AI 不做最终裁决。** 系统输出的是“疑似问题”和“建议”，不得自动打回工作票，也不得自动认定违章。界面和报告上的用语必须体现“预审 / 建议 / 需人工确认”。
 4. **每条发现都必须有依据。** 每个 `Finding` 都必须带 `Basis`（文件、条款号、条款原文），没有依据的发现不允许输出。条款原文必须来自 `data/` 里的源文件，不得凭模型记忆编造。
-5. **运行时零联网。** 运行时代码不得发起任何网络请求，包括遥测、自动更新、在线下载模型。唯一的例外是连接本机 `127.0.0.1` 上的推理服务。
+5. **运行时零联网。** 运行时代码不得发起任何网络请求，包括遥测、自动更新、在线下载模型。唯一的例外是连接本机 `127.0.0.1` 上的推理服务：只有 `rust/tg/src/model.rs` 一个文件可以用 `std::net`，门禁逐行检查它只连本机（ADR-0008）。
 6. **依赖走白名单。** 产品用 Rust 实现，核心功能只用白名单里的依赖（见 ADR-0006 和 `tools/gate.py` 的 `ALLOWED_CRATES`）。新增第三方依赖之前必须在 `docs/decisions/` 写明理由，并确认它能在钉住的工具链（1.77.2）上构建、能离线打包。
 
 ## 3. 目录结构
@@ -44,22 +44,24 @@ docs/                设计文档（编号即阅读顺序）
   tasks/             任务卡 T-xxx（交给实现方的合同）
 rust/                产品代码（Rust）
   ticketguard/       核心库：解析、实体、规则引擎、场景匹配、措施比对、报告、合成、评测
-  tg/                命令行入口，产出 tg.exe
+  tg/                命令行入口，产出 tg.exe；model.rs 启动并连接本机模型程序（唯一能用 std::net 的文件）
   tests/             集成测试；fixtures/ 是编造票面和基准结果（入库）
 archive/             已归档的 Python 参考实现（2026-11-12 归档，不参与构建和门禁，见 archive/README.md）
   src/ tests/        最初的实现和测试；ingest/office.py 仍是唯一能读典票 docx 的代码
   tools/             原来的命令行入口和移植期对拍工具
 tools/               辅助脚本
   gate.py            任务验收门禁（范围、预算、禁用写法、依赖白名单、测试）
+  package.sh         组装试用包 dist/票审/；package/ 是包里的使用说明、反馈表和编造的示例票
   codex/             派发脚本、提示词模板、汇报格式
 data/
   raw/               原始文件（git 忽略，只读，不要修改）
   interim/           解析出的中间文本（git 忽略，可再生成）
   templates/         结构化后的典票场景模板（JSON，入库）
   rules/             规则库（JSON，入库）
+  harness.json       模型模式的全部设置：模型文件、提示词、例题、阈值、自检题（改了要重新实测，ADR-0008）
   synthetic/         变异生成的合成样本（可再生成）
   golden/            人工核验过的黄金评测集（入库，只能放合成或编造的样本）
-models/              本地模型文件 .gguf（git 忽略）
+models/              本地模型文件 .gguf 和 llama.cpp 运行库 llama-b12110/（git 忽略）
 ```
 
 ## 4. 常用命令
@@ -71,7 +73,9 @@ cargo build --release                            # 构建 target/release/tg.exe
 cargo test                                       # 运行全部 Rust 测试
 cargo fmt && cargo clippy --all-targets -- -D warnings   # 格式化、静态检查（零警告）
 target/release/tg.exe check 某张票.txt           # 预审一张票，报告写到 reports/
+target/release/tg.exe check 某张票.txt --mode model   # rule 只用规则 / model 再请本机模型复核 / auto（默认）有 models/ 就用
 target/release/tg.exe help                       # 其它命令：eval、synth、templates、scenarios
+bash tools/package.sh --with-model               # 组装试用包 dist/票审/（不加参数只出规则版）
 py -I tools/gate.py T-001                        # 对某张任务卡跑验收门禁
 bash tools/codex/dispatch.sh T-001               # 派发任务给 Codex，完成后自动跑门禁
 ```
