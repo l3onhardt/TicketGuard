@@ -9,7 +9,7 @@
 
 - **用户**：审票的一方，主要是设备运维单位的工作票接收人、许可人，其次是生技部、安监部做抽查的人员。
 - **做什么**：输入一张工作票（从系统导出的 Word、Excel 或文本），对照《南宁供电局配电运检、配电自动化两票典型票库（2026 版）》和安规条款，输出“疑似问题清单”。每一条都要附上条款依据、对应的典票场景和置信度，供审票人决定是否打回。
-- **怎么跑**：运行在内网的普通办公电脑上（i5 四核、8GB 内存、无 GPU、Windows、**完全断网**）。目标电脑很可能是 **Windows 7**（待核实位数），所以工具链钉在 1.77.2，见 ADR-0006。交付物是单个 `tg.exe`：把票拖到图标上就出报告。
+- **怎么跑**：运行在内网的普通办公电脑上（i5 四核、8GB 内存、无 GPU、Windows、**完全断网**）。目标电脑很可能是 **Windows 7**（待核实位数），所以工具链钉在 1.77.2，见 ADR-0006。交付物是单个 `tg.exe`（试用包里叫 `票审.exe`）：双击打开主界面，粘贴票面就出报告；把票拖到图标上也行。
 
 详细需求见 `docs/01-需求与定位.md`。
 
@@ -74,6 +74,7 @@ cargo test                                       # 运行全部 Rust 测试
 cargo fmt && cargo clippy --all-targets -- -D warnings   # 格式化、静态检查（零警告）
 target/release/tg.exe check 某张票.txt           # 预审一张票，报告写到 reports/
 target/release/tg.exe check 某张票.txt --mode model   # rule 只用规则 / model 再请本机模型复核 / auto（默认）有 models/ 就用
+target/release/tg.exe ui                         # 主界面（双击 exe 也是这个）
 target/release/tg.exe help                       # 其它命令：eval、synth、templates、scenarios
 bash tools/package.sh --with-model               # 组装试用包 dist/票审/（不加参数只出规则版）
 py -I tools/gate.py T-001                        # 对某张任务卡跑验收门禁

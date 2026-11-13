@@ -15,7 +15,7 @@ if [ -d "$out" ]; then
   mv "$out" "dist/票审.旧.$(date +%Y%m%d-%H%M%S)"
 fi
 mkdir -p "$out/data" "$out/示例报告"
-cp target/release/tg.exe "$out/"
+cp target/release/tg.exe "$out/票审.exe"
 cp -r data/rules data/templates "$out/data/"
 cp data/harness.json "$out/data/"
 cp -r tools/package/示例票面 "$out/"
@@ -23,11 +23,6 @@ cp -r tools/package/示例票面 "$out/"
 for name in 使用说明 反馈表; do
   { printf '\xef\xbb\xbf'; sed 's/$/\r/' "tools/package/$name.txt"; } > "$out/$name.txt"
 done
-# 批处理的内容必须是纯 ASCII（否则要看系统代码页）；%~dp0 是批处理自己所在的文件夹
-for pair in "规则模式:rule" "模型模式:model"; do
-  printf '@echo off\r\nset TG_MODE=%s\r\n"%%~dp0tg.exe" %%*\r\n' "${pair#*:}" > "$out/${pair%%:*}.bat"
-done
-
 if [ "${1:-}" = "--with-model" ]; then
   mkdir -p "$out/models/$llama"
   # 只带模型程序运行需要的文件（不带命令行聊天、训练、评测等其它工具）
@@ -45,11 +40,11 @@ fi
 # 示例报告：五张编造的票，规则模式各一份；带了模型就再出模型模式各一份
 export TG_NO_OPEN=1
 for ticket in "$out"/示例票面/*.txt; do
-  "$out/tg.exe" check "$ticket" --mode rule --out "$out/示例报告/规则模式" > /dev/null
+  "$out/票审.exe" check "$ticket" --mode rule --out "$out/示例报告/规则模式" > /dev/null
 done
 if [ -d "$out/models" ]; then
   for ticket in "$out"/示例票面/*.txt; do
-    "$out/tg.exe" check "$ticket" --mode model --out "$out/示例报告/模型模式" > /dev/null
+    "$out/票审.exe" check "$ticket" --mode model --out "$out/示例报告/模型模式" > /dev/null
   done
 fi
 find "$out/示例报告" -name '*.json' -delete

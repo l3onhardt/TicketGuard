@@ -16,6 +16,7 @@ pub mod synth;
 pub mod templates;
 pub mod text;
 pub mod time;
+pub mod ui;
 
 /// 统一错误：库里任何一层出问题都带上中文说明，由命令行入口转成用户能看懂的一句话。
 #[derive(Debug)]

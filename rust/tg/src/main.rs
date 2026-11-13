@@ -5,8 +5,10 @@
 //! `scenarios`（按场景切分典票正文）。典票 docx 的读取暂不在 Rust 里做。
 
 mod model;
+mod ui;
 
 use std::collections::HashMap;
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -25,6 +27,8 @@ fn usage() -> String {
     "用法：tg <命令> [参数]\n\
      \n\
      命令：\n\
+       ui [--out 目录]\n\
+           打开主界面（直接双击 exe 也是这个）：在浏览器里粘贴票面、选模式、看报告\n\
        check <票面文件> [--out 目录] [--templates 目录] [--rules 目录] [--lexicon 文件] [--mode rule|model|auto]\n\
            预审一张票（票面文本 .txt），写出 JSON 和 HTML 报告\n\
            --mode：rule 只用规则；model 规则之后再请本机模型复核；auto（默认）有模型就用\n\
@@ -145,7 +149,11 @@ fn prepare_mode(args: &Args) -> Result<Mode, Error> {
         Some(mode) => mode.clone(),
         None => std::env::var("TG_MODE").unwrap_or_else(|_| "auto".to_string()),
     };
-    match mode.as_str() {
+    start_mode(&mode)
+}
+
+fn start_mode(mode: &str) -> Result<Mode, Error> {
+    match mode {
         "rule" => return Ok(Mode::Rule),
         "auto" | "model" => {}
         _ => return Err(Error(format!("--mode 只能是 rule、model 或 auto，不能是 {mode}"))),
@@ -171,10 +179,37 @@ fn check_ticket(path: &Path, out_dir: &Path, args: &Args, mode: &Mode) -> Result
         return Err(Error(format!("{}：目前只支持票面文本（.txt）。PDF 和 Word 的读取还没有做。", path.display())));
     }
     let text = read_ticket(path)?;
+    let name = stem(path);
+    let source = path.file_name().and_then(OsStr::to_str).expect("扩展名检查已经确认文件名是 UTF-8");
+    let (html, report) = check_text_with_source(&text, &name, source, out_dir, args, mode)?;
+    print_summary(&report, &html);
+    Ok(html)
+}
+
+/// 预审一段票面文本，写出 JSON 和 HTML 报告，返回 (HTML 路径, 报告)。不打印。
+fn check_text(
+    text: &str,
+    name: &str,
+    out_dir: &Path,
+    args: &Args,
+    mode: &Mode,
+) -> Result<(PathBuf, serde_json::Value), Error> {
+    check_text_with_source(text, name, &format!("{name}.txt"), out_dir, args, mode)
+}
+
+// 文件入口保留原文件名的扩展名大小写，以免既有报告内容发生变化。
+fn check_text_with_source(
+    text: &str,
+    name: &str,
+    source: &str,
+    out_dir: &Path,
+    args: &Args,
+    mode: &Mode,
+) -> Result<(PathBuf, serde_json::Value), Error> {
     let lexicon = load_lexicon(&args.data(OPT_LEXICON, "data/rules/lexicon.json"))?;
     let rules = load_rules(&args.data(OPT_RULES, "data/rules"))?;
     let templates = load_templates(&args.data(OPT_TEMPLATES, "data/templates/D1"))?;
-    let mut review = review_text(&text, &rules, &templates, &lexicon)?;
+    let mut review = review_text(text, &rules, &templates, &lexicon)?;
     match mode {
         Mode::Ready(model, harness) => {
             if let Err(err) = second_opinion(&mut review, &templates, harness, &mut |body| model.ask(body)) {
@@ -185,12 +220,14 @@ fn check_ticket(path: &Path, out_dir: &Path, args: &Args, mode: &Mode) -> Result
         Mode::Failed(reason) => review.model = ModelUse::Failed(reason.clone()),
         Mode::Rule => {}
     }
-    let report = build_report(&review, &templates, path.file_name().and_then(|name| name.to_str()).unwrap_or(""));
-    let name = stem(path);
+    let report = build_report(&review, &templates, source);
     write_file(&out_dir.join(format!("{name}.预审.json")), &format!("{}\n", pretty(&report)))?;
     let html = out_dir.join(format!("{name}.预审.html"));
     write_file(&html, &render_html(&report))?;
+    Ok((html, report))
+}
 
+fn print_summary(report: &serde_json::Value, html: &Path) {
     let scenario = &report["scenario"];
     let number = match report["ticket"]["number"].as_str() {
         Some(value) if !value.is_empty() => value.to_string(),
@@ -215,7 +252,6 @@ fn check_ticket(path: &Path, out_dir: &Path, args: &Args, mode: &Mode) -> Result
         );
     }
     println!("报告 → {}", html.display());
-    Ok(html)
 }
 
 fn cmd_check(args: &Args) -> Result<(), Error> {
@@ -225,15 +261,15 @@ fn cmd_check(args: &Args) -> Result<(), Error> {
     check_ticket(Path::new(source), &out_dir, args, &mode).map(|_| ())
 }
 
-/// 用系统默认浏览器打开报告。不经过命令解释器，路径里有空格或特殊字符也安全。
+/// 用系统默认浏览器打开页面。不经过命令解释器，路径里有空格或特殊字符也安全。
 /// 环境变量 TG_NO_OPEN 存在时不打开（自动化测试用）。
-fn open_in_browser(path: &Path) {
+fn open_in_browser(target: &OsStr) {
     if std::env::var_os("TG_NO_OPEN").is_some() {
         return;
     }
-    let opened = std::process::Command::new("rundll32").arg("url.dll,FileProtocolHandler").arg(path).status();
+    let opened = std::process::Command::new("rundll32").arg("url.dll,FileProtocolHandler").arg(target).status();
     if opened.map(|status| !status.success()).unwrap_or(true) {
-        println!("没能自动打开报告，请手动双击：{}", path.display());
+        println!("没能自动打开，请手动打开：{}", target.to_string_lossy());
     }
 }
 
@@ -259,7 +295,7 @@ fn run_dropped(files: &[String]) -> ExitCode {
         let path = Path::new(file);
         let out_dir = path.parent().filter(|dir| !dir.as_os_str().is_empty()).unwrap_or(Path::new("."));
         match check_ticket(path, out_dir, &args, &mode) {
-            Ok(html) => open_in_browser(&html),
+            Ok(html) => open_in_browser(html.as_os_str()),
             Err(err) => {
                 failed = true;
                 println!("这张票没能预审：{err}");
@@ -403,11 +439,12 @@ fn pretty(value: &serde_json::Value) -> String {
     serde_json::to_string_pretty(value).expect("JSON 序列化不会失败")
 }
 
-const COMMANDS: [&str; 5] = ["check", "eval", "synth", "templates", "scenarios"];
+const COMMANDS: [&str; 6] = ["ui", "check", "eval", "synth", "templates", "scenarios"];
 
 fn run(argv: &[String]) -> Result<(), Error> {
     let (command, args) = parse_args(argv)?;
     match command.as_str() {
+        "ui" => ui::serve(&args),
         "check" => cmd_check(&args),
         "eval" => cmd_eval(&args),
         "synth" => cmd_synth(&args),
@@ -423,23 +460,19 @@ fn run(argv: &[String]) -> Result<(), Error> {
 
 fn main() -> ExitCode {
     let argv: Vec<String> = std::env::args().skip(1).collect();
-    // 双击 exe：没有参数。告诉用户怎么用，并停住窗口。
-    if argv.is_empty() {
-        println!("票审 TicketGuard：配电工作票离线智能预审\n");
-        println!("用法：把工作票的票面文本（.txt）拖到本程序的图标上，报告会生成在票的旁边并自动打开。");
-        println!("本工具只做预审建议，所列均为“疑似问题”，是否接收或打回由审票人决定。\n");
-        println!("命令行用法请运行：tg help");
-        wait_for_enter();
-        return ExitCode::SUCCESS;
-    }
+    let double_clicked = argv.is_empty();
     // 拖放：参数全是存在的文件，而且第一个不是命令名
-    if !COMMANDS.contains(&argv[0].as_str()) && argv.iter().all(|arg| Path::new(arg).is_file()) {
+    if !double_clicked && !COMMANDS.contains(&argv[0].as_str()) && argv.iter().all(|arg| Path::new(arg).is_file()) {
         return run_dropped(&argv);
     }
-    match run(&argv) {
+    let result = if double_clicked { run(&["ui".to_string()]) } else { run(&argv) };
+    match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
             eprintln!("{err}");
+            if double_clicked {
+                wait_for_enter();
+            }
             ExitCode::FAILURE
         }
     }
