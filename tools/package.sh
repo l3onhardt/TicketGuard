@@ -1,18 +1,20 @@
 #!/usr/bin/env bash
 # 组装交付文件夹：bash tools/package.sh [--with-model]
 #   默认只出规则版（几 MB）；--with-model 把模型程序和模型文件也放进去（约 1.4 GB）。
-# 产物在 dist/票审/（git 忽略）。示例报告由刚构建的 tg.exe 现场生成，不会和程序对不上。
+# 产物在 dist/票审-版本号/（git 忽略），文件夹名带版本号，新旧版本互不覆盖。示例报告由刚构建的 tg.exe 现场生成，不会和程序对不上。
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
-out="dist/票审"
+version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml)
+[ -n "$version" ] || { echo "没能从 Cargo.toml 读出版本号"; exit 1; }
+out="dist/票审-$version"
 llama="llama-b12110"
 model=$(sed -n 's/.*"model": *"\([^"]*\)".*/\1/p' data/harness.json)
 
 cargo build --release
 # 每次重新组装，免得上一次的文件混进来
 if [ -d "$out" ]; then
-  mv "$out" "dist/票审.旧.$(date +%Y%m%d-%H%M%S)"
+  mv "$out" "$out.旧.$(date +%Y%m%d-%H%M%S)"
 fi
 mkdir -p "$out/data" "$out/示例报告"
 cp target/release/tg.exe "$out/票审.exe"

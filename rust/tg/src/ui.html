@@ -42,7 +42,7 @@ main {display: block; max-width: 60rem; margin: 1.5rem auto; padding: 0 1rem;}
 .chip button {border: 0; background: transparent; cursor: pointer; color: #52606d; padding: 0 0 0 .5rem;}
 a.example {display: inline-block; margin: .15rem 1rem .15rem 0; color: #1d4ed8; cursor: pointer; text-decoration: underline; font-size: .875rem;}
 #go-row {text-align: center; margin: 1.5rem 0 .5rem;}
-.how {max-width: 44rem; margin: 1rem auto 0; text-align: left;}
+.how {margin: 1.5rem 0 0; text-align: left;}
 
 /* 流水线的三步 */
 .steps {display: table; width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: .6rem 0; margin: 0 -.6rem;}
@@ -387,8 +387,9 @@ ul.plain li {margin-bottom: .4rem;}
     } else {
       setStep("step2", "ok", "维持原判", "复核了 " + rule.pending + " 处，没有发现只是写法不同的");
     }
-    var need = end.issues > 0 ? "需要你看的疑点 " + end.issues + " 处" + (end.notes > 0 ? "，另有 " + end.notes + " 条提示" : "")
-      : end.notes > 0 ? "有 " + end.notes + " 条提示请过目" : "机器只查了报告清单里的项目，其余请人工审核";
+    var need = end.issues > 0 ? "逐条看下面的报告。确认属实的已经写进打回意见草稿，可以直接复制"
+      : end.level === "no_scenario" ? "这张票的安全措施需要完全由人工审核"
+      : end.notes > 0 ? "提示不一定是问题，默认不写进打回意见草稿" : "机器只查了报告清单里的项目，其余请人工审核";
     setStep("step3", end.level, end.headline, need);
   }
 
@@ -463,16 +464,33 @@ ul.plain li {margin-bottom: .4rem;}
       job.state = "model";
       job.seconds = 0;
       refresh(index);
-      call("POST", "check", {name: job.name, text: job.text, stage: "full"}, function (last) {
-        if (last.ok) {
-          job.final = last;
-          if (rule.pending > 0) { modelState = last.model === "done" ? "ready" : "failed"; }
-        } else { job.modelError = last.error; }
-        job.state = "done";
-        refresh(index);
-        runNext();
+      afterReportShown(index, function () {
+        call("POST", "check", {name: job.name, text: job.text, stage: "full"}, function (last) {
+          if (last.ok) {
+            job.final = last;
+            if (rule.pending > 0) { modelState = last.model === "done" ? "ready" : "failed"; }
+          } else { job.modelError = last.error; }
+          job.state = "done";
+          refresh(index);
+          runNext();
+        });
       });
     });
+  }
+
+  // 程序一次只处理一个请求：先等规则那一步的报告在页面上显示出来，再去要第二步，
+  // 否则等模型的十几秒里下面是空白的。
+  function afterReportShown(index, next) {
+    if (selected !== index) { next(); return; }
+    var fired = false;
+    function once() {
+      if (fired) { return; }
+      fired = true;
+      $("frame").onload = null;
+      next();
+    }
+    $("frame").onload = once;
+    setTimeout(once, 1500);
   }
 
   // 粘贴的票用票号起名，免得几张粘贴的票的报告互相覆盖

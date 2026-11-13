@@ -51,13 +51,14 @@ archive/             已归档的 Python 参考实现（2026-11-12 归档，不�
   tools/             原来的命令行入口和移植期对拍工具
 tools/               辅助脚本
   gate.py            任务验收门禁（范围、预算、禁用写法、依赖白名单、测试）
-  package.sh         组装试用包 dist/票审/；package/ 是包里的使用说明、反馈表和编造的示例票
+  package.sh         组装试用包 dist/票审-版本号/；package/ 是包里的使用说明、反馈表和编造的示例票
   codex/             派发脚本、提示词模板、汇报格式
 data/
   raw/               原始文件（git 忽略，只读，不要修改）
   interim/           解析出的中间文本（git 忽略，可再生成）
   templates/         结构化后的典票场景模板（JSON，入库）
   rules/             规则库（JSON，入库）
+  accuracy.json      准确度页显示的成绩单（考题上的实测数字；改了规则、模型或 harness 要重测再改，ADR-0010）
   harness.json       模型模式的全部设置：模型文件、提示词、例题、阈值、自检题（改了要重新实测，ADR-0008）
   synthetic/         变异生成的合成样本（可再生成）
   golden/            人工核验过的黄金评测集（入库，只能放合成或编造的样本）
@@ -76,7 +77,7 @@ target/release/tg.exe check 某张票.txt           # 预审一张票，报告�
 target/release/tg.exe check 某张票.txt --mode model   # rule 只用规则 / model 再请本机模型复核 / auto（默认）有 models/ 就用
 target/release/tg.exe ui                         # 主界面（双击 exe 也是这个）
 target/release/tg.exe help                       # 其它命令：eval、synth、templates、scenarios
-bash tools/package.sh --with-model               # 组装试用包 dist/票审/（不加参数只出规则版）
+bash tools/package.sh --with-model               # 组装试用包 dist/票审-版本号/（不加参数只出规则版）
 py -I tools/gate.py T-001                        # 对某张任务卡跑验收门禁
 bash tools/codex/dispatch.sh T-001               # 派发任务给 Codex，完成后自动跑门禁
 ```
