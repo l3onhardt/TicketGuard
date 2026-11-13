@@ -47,7 +47,10 @@ fn reads_a_get_request() {
 #[test]
 fn reads_a_post_body_by_content_length() {
     let body = "{\"text\":\"断开10kV某线01开关\"}";
-    let raw = format!("POST /abc/check HTTP/1.1\r\nHost: 127.0.0.1:5000\r\ncontent-length: {}\r\n\r\n{body}多出来的", body.len());
+    let raw = format!(
+        "POST /abc/check HTTP/1.1\r\nHost: 127.0.0.1:5000\r\ncontent-length: {}\r\n\r\n{body}多出来的",
+        body.len()
+    );
     assert_eq!(parse(&raw).expect("能读").body, body);
     let request = read_request(&mut Drip(raw.as_bytes())).expect("一次一个字节也能读");
     assert_eq!((request.method.as_str(), request.body.as_str()), ("POST", body));
@@ -121,6 +124,9 @@ fn safe_name_cannot_leave_the_report_folder() {
     assert_eq!(long.chars().count(), 60);
     for name in ["..\\x", "a/b", "con:1", "  .hidden.  "] {
         let cleaned = safe_name(name);
-        assert!(!cleaned.contains(['\\', '/', ':']) && !cleaned.starts_with('.') && !cleaned.ends_with('.'), "{cleaned}");
+        assert!(
+            !cleaned.contains(['\\', '/', ':']) && !cleaned.starts_with('.') && !cleaned.ends_with('.'),
+            "{cleaned}"
+        );
     }
 }

@@ -43,7 +43,8 @@ a.example {display: inline-block; margin: .15rem 1rem .15rem 0; color: #1d4ed8; 
 .mode .state {color: #b45309;}
 .warn {background: #fff7ed; border-left: 6px solid #b45309; padding: .75rem 1rem; margin-bottom: 1rem;}
 #go-row {text-align: center; margin: 1.5rem 0 .5rem;}
-#results {display: none; height: 100%;}
+#results {display: none;}
+body.busy {overflow: hidden;}
 #bar {background: #fff; border-bottom: 1px solid #d9e2ec; padding: .5rem 1.25rem; overflow: hidden;}
 #bar .btn {float: left; margin-right: 1rem;}
 #bar p {margin: 0; line-height: 2.3rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;}
@@ -162,6 +163,7 @@ a.example {display: inline-block; margin: .15rem 1rem .15rem 0; color: #1d4ed8; 
     closed = true;
     if (timer) { clearInterval(timer); }
     show("input", false); show("results", false); show("gone", true);
+    document.body.className = "";
     $("quit").style.display = "none";
     setText($("gone-title"), title); setText($("gone-text"), text);
   }
@@ -357,14 +359,21 @@ a.example {display: inline-block; margin: .15rem 1rem .15rem 0; color: #1d4ed8; 
     });
   }
 
+  // 粘贴的票用票号起名，免得几张粘贴的票的报告互相覆盖
+  function pastedName(text) {
+    var found = /编号[:：][ \t　]*([^\s|\/]+)/.exec(text);
+    return found ? "票号 " + found[1] : "粘贴的票面";
+  }
+
   $("go").onclick = function () {
     jobs = [];
     var pasted = $("text").value;
-    if (pasted.replace(/\s/g, "")) { jobs.push({name: "粘贴的票面", text: pasted}); }
+    if (pasted.replace(/\s/g, "")) { jobs.push({name: pastedName(pasted), text: pasted}); }
     for (var i = 0; i < files.length; i++) { jobs.push({name: files[i].name, text: files[i].text}); }
     for (var k = 0; k < jobs.length; k++) { jobs[k].state = "waiting"; jobs[k].mode = mode(); jobs[k].seconds = 0; }
     selected = -1;
     show("input", false); show("results", true); show("model-note", false);
+    document.body.className = "busy";
     $("again").disabled = true;
     timer = setInterval(function () {
       for (var j = 0; j < jobs.length; j++) { if (jobs[j].state === "running") { jobs[j].seconds += 1; } }
@@ -377,6 +386,7 @@ a.example {display: inline-block; margin: .15rem 1rem .15rem 0; color: #1d4ed8; 
     files = []; $("text").value = ""; drawFiles(); fileError("");
     $("frame").setAttribute("data-shown", ""); $("frame").src = "about:blank";
     show("results", false); show("input", true);
+    document.body.className = "";
     call("GET", "status", null, function (status) { if (status.version) { applyStatus(status); } });
   };
   $("open").onclick = function () { if (selected >= 0 && jobs[selected].state === "done") { window.open(jobs[selected].result.report, "_blank"); } };
