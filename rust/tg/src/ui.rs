@@ -8,10 +8,13 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use serde_json::{json, Value};
-use ticketguard::ui::{read_request, response, route, safe_name};
+use ticketguard::review::ModelUse;
+use ticketguard::ui::{read_request, response, route, safe_name, summary};
 use ticketguard::Error;
 
-use crate::{check_text, locate, open_in_browser, read_ticket, start_mode, Args, Mode, OPT_OUT};
+use crate::{
+    apply_mode, locate, open_in_browser, read_ticket, review_ticket, start_mode, write_report, Args, Mode, OPT_OUT,
+};
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const HTML: &str = "text/html; charset=utf-8";
@@ -99,6 +102,12 @@ fn examples() -> Result<Value, Error> {
     Ok(Value::Array(list))
 }
 
+fn accuracy() -> Result<Value, Error> {
+    let path = locate("data/accuracy.json");
+    let text = fs::read_to_string(&path).map_err(|err| Error(format!("{}：读取失败（{err}）", path.display())))?;
+    serde_json::from_str(&text).map_err(|err| Error(format!("{}：不是合法的 JSON（{err}）", path.display())))
+}
+
 struct Session {
     out_dir: PathBuf,
     model: Option<Mode>,
@@ -111,6 +120,7 @@ impl Session {
             ("GET", "") => response(200, HTML, include_str!("ui.html")),
             ("GET", "status") => json_response(Ok(self.status())),
             ("GET", "examples") => json_response(examples()),
+            ("GET", "accuracy") => json_response(accuracy()),
             ("POST", "check") => json_response(self.check(body, args)),
             ("GET", path) if path.starts_with("report/") => {
                 self.report(path).map_or_else(not_found, |html| response(200, HTML, &html))
@@ -142,31 +152,37 @@ impl Session {
     fn check(&mut self, body: &str, args: &Args) -> Result<Value, Error> {
         let format_error = || Error("请求的格式不对".to_string());
         let data: Value = serde_json::from_str(body).map_err(|_| format_error())?;
-        let (Some(name), Some(text), Some(mode @ ("rule" | "model"))) =
-            (data["name"].as_str(), data["text"].as_str(), data["mode"].as_str())
+        let (Some(name), Some(text), Some(stage @ ("rule" | "full"))) =
+            (data["name"].as_str(), data["text"].as_str(), data["stage"].as_str())
         else {
             return Err(format_error());
         };
-        let mode = if mode == "rule" {
-            &Mode::Rule
-        } else {
-            if self.model.is_none() {
-                self.model = Some(start_mode("model")?);
+        let (mut review, templates) = review_ticket(text, args)?;
+        if stage == "full" {
+            if review.findings.iter().any(|finding| finding.rule_id == "CMP-MISSING") {
+                if self.model.is_none() {
+                    self.model = Some(start_mode("model")?);
+                }
+                apply_mode(&mut review, &templates, self.model.as_ref().expect("已保存模型模式的启动结果"));
+            } else {
+                review.model = ModelUse::Done { asked: 0 };
             }
-            self.model.as_ref().expect("已保存模型模式的启动结果")
-        };
+        }
         let name = safe_name(name);
-        let (html, report) = check_text(text, &name, &self.out_dir, args, mode)?;
-        let number = report["ticket"]["number"].as_str().filter(|value| !value.is_empty()).unwrap_or("未填写");
-        let model_note = match mode {
-            Mode::Failed(reason) => reason.as_str(),
-            _ => "",
+        let (html, report) = write_report(&review, &templates, &name, &format!("{name}.txt"), &self.out_dir)?;
+        let counts = summary(&report);
+        let (model, model_note) = match &review.model {
+            ModelUse::Off => ("off", ""),
+            ModelUse::Done { .. } => ("done", ""),
+            ModelUse::Failed(reason) => ("failed", reason.as_str()),
         };
         let result = json!({
-            "ok": true, "name": name, "number": number,
-            "level": report["verdict"]["level"], "headline": report["verdict"]["headline"],
-            "report": format!("report/{}", self.reports.len()), "saved": html.display().to_string(),
-            "model_note": model_note
+            "ok": true, "name": name,
+            "number": counts["number"], "level": counts["level"], "headline": counts["headline"],
+            "issues": counts["issues"], "notes": counts["notes"],
+            "pending": counts["pending"], "reworded": counts["reworded"],
+            "model": model, "model_note": model_note,
+            "report": format!("report/{}", self.reports.len()), "saved": html.display().to_string()
         });
         self.reports.push(html);
         Ok(result)

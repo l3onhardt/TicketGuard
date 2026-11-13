@@ -123,3 +123,29 @@ pub fn safe_name(name: &str) -> String {
         name.chars().take(60).collect()
     }
 }
+
+/// 从一份报告（`build_report` 的结果）里取出主界面要显示的几个数。
+pub fn summary(report: &serde_json::Value) -> serde_json::Value {
+    let ticket = report["ticket"].as_object().expect("报告票面为对象");
+    let number =
+        ticket.get("number").and_then(serde_json::Value::as_str).filter(|value| !value.is_empty()).unwrap_or("未填写");
+    let level = report["verdict"]["level"].as_str().expect("报告结论等级为字符串");
+    let headline = report["verdict"]["headline"].as_str().expect("报告结论为字符串");
+    let findings = report["findings"].as_array().expect("报告发现为数组");
+    let (mut issues, mut notes, mut pending, mut reworded) = (0, 0, 0, 0);
+    for finding in findings {
+        let severity = finding["severity"].as_str().expect("发现严重度为字符串");
+        let rule_id = finding["rule_id"].as_str().expect("发现规则编号为字符串");
+        if severity == "info" {
+            notes += 1;
+        } else {
+            issues += 1;
+        }
+        pending += usize::from(rule_id == "CMP-MISSING");
+        reworded += usize::from(rule_id == "CMP-REWORDED");
+    }
+    serde_json::json!({
+        "number": number, "level": level, "headline": headline,
+        "issues": issues, "notes": notes, "pending": pending, "reworded": reworded
+    })
+}

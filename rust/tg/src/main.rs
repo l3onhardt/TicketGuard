@@ -17,10 +17,10 @@ use ticketguard::evaluate::evaluate;
 use ticketguard::harness::{load_harness, second_opinion, Harness};
 use ticketguard::ingest::{parse_dist1, split_scenarios};
 use ticketguard::report::{build_report, render_html};
-use ticketguard::review::{review_text, ModelUse};
+use ticketguard::review::{review_text, ModelUse, Review};
 use ticketguard::rules::load_rules;
 use ticketguard::synth::generate;
-use ticketguard::templates::{build_template, load_templates};
+use ticketguard::templates::{build_template, load_templates, Template};
 use ticketguard::Error;
 
 fn usage() -> String {
@@ -181,38 +181,27 @@ fn check_ticket(path: &Path, out_dir: &Path, args: &Args, mode: &Mode) -> Result
     let text = read_ticket(path)?;
     let name = stem(path);
     let source = path.file_name().and_then(OsStr::to_str).expect("扩展名检查已经确认文件名是 UTF-8");
-    let (html, report) = check_text_with_source(&text, &name, source, out_dir, args, mode)?;
+    let (mut review, templates) = review_ticket(&text, args)?;
+    apply_mode(&mut review, &templates, mode);
+    let (html, report) = write_report(&review, &templates, &name, source, out_dir)?;
     print_summary(&report, &html);
     Ok(html)
 }
 
-/// 预审一段票面文本，写出 JSON 和 HTML 报告，返回 (HTML 路径, 报告)。不打印。
-fn check_text(
-    text: &str,
-    name: &str,
-    out_dir: &Path,
-    args: &Args,
-    mode: &Mode,
-) -> Result<(PathBuf, serde_json::Value), Error> {
-    check_text_with_source(text, name, &format!("{name}.txt"), out_dir, args, mode)
-}
-
-// 文件入口保留原文件名的扩展名大小写，以免既有报告内容发生变化。
-fn check_text_with_source(
-    text: &str,
-    name: &str,
-    source: &str,
-    out_dir: &Path,
-    args: &Args,
-    mode: &Mode,
-) -> Result<(PathBuf, serde_json::Value), Error> {
+/// 读规则、模板、词表，预审一段票面文本。
+fn review_ticket(text: &str, args: &Args) -> Result<(Review, Vec<Template>), Error> {
     let lexicon = load_lexicon(&args.data(OPT_LEXICON, "data/rules/lexicon.json"))?;
     let rules = load_rules(&args.data(OPT_RULES, "data/rules"))?;
     let templates = load_templates(&args.data(OPT_TEMPLATES, "data/templates/D1"))?;
-    let mut review = review_text(text, &rules, &templates, &lexicon)?;
+    let review = review_text(text, &rules, &templates, &lexicon)?;
+    Ok((review, templates))
+}
+
+/// 按这次的模式处理模型复核。
+fn apply_mode(review: &mut Review, templates: &[Template], mode: &Mode) {
     match mode {
         Mode::Ready(model, harness) => {
-            if let Err(err) = second_opinion(&mut review, &templates, harness, &mut |body| model.ask(body)) {
+            if let Err(err) = second_opinion(review, templates, harness, &mut |body| model.ask(body)) {
                 println!("模型复核没有做成，这张票只用了规则：{err}");
                 review.model = ModelUse::Failed(err.0);
             }
@@ -220,7 +209,17 @@ fn check_text_with_source(
         Mode::Failed(reason) => review.model = ModelUse::Failed(reason.clone()),
         Mode::Rule => {}
     }
-    let report = build_report(&review, &templates, source);
+}
+
+/// 生成报告，写出 JSON 和 HTML，返回 (HTML 路径, 报告)。`source` 是报告里写的来源文件名。
+fn write_report(
+    review: &Review,
+    templates: &[Template],
+    name: &str,
+    source: &str,
+    out_dir: &Path,
+) -> Result<(PathBuf, serde_json::Value), Error> {
+    let report = build_report(review, templates, source);
     write_file(&out_dir.join(format!("{name}.预审.json")), &format!("{}\n", pretty(&report)))?;
     let html = out_dir.join(format!("{name}.预审.html"));
     write_file(&html, &render_html(&report))?;
