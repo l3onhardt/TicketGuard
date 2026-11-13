@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>票审 · 配电工作票预审</title>
+<style>
+* {box-sizing: border-box;}
+html, body {height: 100%;}
+body {margin: 0; background: #f5f7fa; color: #1f2933; font: 16px/1.7 "Microsoft YaHei", "PingFang SC", sans-serif;}
+button, textarea, input {font: inherit; color: inherit;}
+.top {background: #102a43; color: #fff; padding: .6rem 1.25rem; overflow: hidden;}
+.top h1 {float: left; margin: 0; font-size: 1.1rem; font-weight: bold; line-height: 2.2rem;}
+.top h1 small {font-weight: normal; color: #bcccdc; font-size: .875rem; margin-left: .75rem;}
+.top .right {float: right; line-height: 2.2rem; font-size: .875rem; color: #bcccdc;}
+.top button {margin-left: 1rem; background: transparent; color: #fff; border: 1px solid #829ab1; padding: .1rem .9rem; cursor: pointer;}
+.top button:hover {background: #243b53;}
+main {display: block; max-width: 60rem; margin: 1.5rem auto; padding: 0 1rem;}
+.card {background: #fff; border: 1px solid #d9e2ec; padding: 1.5rem; margin-bottom: 1.25rem;}
+h2 {margin: 0 0 .75rem; font-size: 1.15rem;}
+h2 .step {display: inline-block; width: 1.7rem; height: 1.7rem; line-height: 1.7rem; margin-right: .5rem; text-align: center; background: #102a43; color: #fff; border-radius: 50%; font-size: .95rem;}
+p {margin: 0 0 .75rem;}
+.muted {color: #52606d; font-size: .875rem;}
+#text {display: block; width: 100%; height: 14rem; padding: .75rem; border: 1px solid #9fb3c8; resize: vertical; line-height: 1.5; font-size: .95rem; background: #fff;}
+#text.over {border: 2px dashed #1d4ed8; background: #eff6ff;}
+.row {margin-top: .75rem;}
+.btn {display: inline-block; background: #fff; border: 1px solid #9fb3c8; padding: .35rem 1rem; cursor: pointer;}
+.btn:hover {background: #f0f4f8;}
+.primary {background: #1d4ed8; border-color: #1d4ed8; color: #fff; font-size: 1.1rem; padding: .6rem 2.5rem;}
+.primary:hover {background: #1e40af;}
+.primary[disabled] {background: #9fb3c8; border-color: #9fb3c8; cursor: default;}
+#picker {display: none;}
+.chip {display: inline-block; margin: .25rem .5rem .25rem 0; padding: .15rem .75rem; border: 1px solid #bcccdc; background: #f0f4f8; font-size: .875rem;}
+.chip button {border: 0; background: transparent; cursor: pointer; color: #52606d; padding: 0 0 0 .5rem;}
+a.example {display: inline-block; margin: .15rem 1rem .15rem 0; color: #1d4ed8; cursor: pointer; text-decoration: underline; font-size: .875rem;}
+.mode {display: block; position: relative; border: 2px solid #d9e2ec; padding: .9rem 1rem .9rem 2.75rem; margin-bottom: .75rem; cursor: pointer;}
+.mode input {position: absolute; left: 1rem; top: 1.25rem;}
+.mode.on {border-color: #1d4ed8; background: #eff6ff;}
+.mode.off {cursor: default; background: #f5f7fa; color: #829ab1;}
+.mode b {font-size: 1.05rem;}
+.mode span {display: block; font-size: .9rem;}
+.mode .state {color: #b45309;}
+.warn {background: #fff7ed; border-left: 6px solid #b45309; padding: .75rem 1rem; margin-bottom: 1rem;}
+#go-row {text-align: center; margin: 1.5rem 0 .5rem;}
+#results {display: none; height: 100%;}
+#bar {background: #fff; border-bottom: 1px solid #d9e2ec; padding: .5rem 1.25rem; overflow: hidden;}
+#bar .btn {float: left; margin-right: 1rem;}
+#bar p {margin: 0; line-height: 2.3rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;}
+#list {float: left; width: 19rem; padding: 1rem; overflow-y: auto;}
+#pane {margin-left: 19rem; padding: 1rem 1rem 0 0;}
+#frame {display: block; width: 100%; border: 1px solid #d9e2ec; background: #fff;}
+.item {background: #fff; border: 1px solid #d9e2ec; border-left: 6px solid #9fb3c8; padding: .6rem .75rem; margin-bottom: .6rem; cursor: pointer; word-wrap: break-word;}
+.item.sel {outline: 2px solid #1d4ed8;}
+.item b {display: block; font-size: .95rem;}
+.item span {display: block; font-size: .875rem; color: #52606d;}
+.item.issues {border-left-color: #b45309;}
+.item.no_scenario {border-left-color: #52606d;}
+.item.notes {border-left-color: #1d4ed8;}
+.item.clear {border-left-color: #15803d;}
+.item.failed {border-left-color: #b42318;}
+.item.failed span {color: #b42318;}
+#message {display: none; background: #fff; border: 1px solid #d9e2ec; padding: 2rem;}
+#gone {display: none; max-width: 40rem; margin: 5rem auto; text-align: center;}
+@media (max-width: 52rem) {
+  #list {float: none; width: auto; max-height: 12rem;}
+  #pane {margin-left: 0; padding: 0 1rem;}
+}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>票审<small>配电第一种工作票 · 离线预审</small></h1>
+  <div class="right"><span id="version"></span><button type="button" id="quit">退出票审</button></div>
+</div>
+
+<main id="input">
+  <p class="muted">只做预审建议：列出的都是“疑似问题”，每条附依据；是否接收或打回由审票人决定。票面只在这台电脑上处理，不联网。</p>
+
+  <div class="card">
+    <h2><span class="step">1</span>放入票面</h2>
+    <textarea id="text" placeholder="把工作票的票面全文粘贴到这里（在系统里全选、复制，到这里粘贴）。&#10;&#10;也可以把 .txt 文件拖到这个框里。"></textarea>
+    <div class="row">
+      <button type="button" class="btn" id="pick">选择 .txt 文件…</button>
+      <input type="file" id="picker" accept=".txt,text/plain" multiple>
+      <span class="muted">可以一次选几张。</span>
+    </div>
+    <div class="row" id="files"></div>
+    <p class="warn" id="file-error" style="display:none"></p>
+    <div class="row" id="examples-row" style="display:none">
+      <span class="muted">手头没有票？点一张编造的示例票试一试：</span><br><span id="examples"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2><span class="step">2</span>选模式</h2>
+    <label class="mode" id="mode-rule">
+      <input type="radio" name="mode" value="rule">
+      <b>规则模式</b>
+      <span>只用规则查，一两秒出结果。同一张票每次结果都一样。</span>
+    </label>
+    <label class="mode" id="mode-model">
+      <input type="radio" name="mode" value="model">
+      <b>模型模式</b>
+      <span>规则查完以后，再请这台电脑上的小模型把“疑似缺少措施”的事项复核一遍：票面上其实有、只是写法和典票不同的，从“疑点”降为“提示”。疑点只会变少，不会变多。每张票多花十几秒，第一张还要等模型启动。</span>
+      <span class="state" id="model-state"></span>
+    </label>
+  </div>
+
+  <div id="go-row">
+    <button type="button" class="btn primary" id="go" disabled>开始预审</button>
+    <p class="muted" id="go-hint" style="margin-top:.5rem">先粘贴票面，或者选择文件。</p>
+  </div>
+</main>
+
+<div id="results">
+  <div id="bar">
+    <button type="button" class="btn" id="again">← 再审一张</button>
+    <button type="button" class="btn" id="open">在新窗口打开这份报告</button>
+    <p class="muted" id="saved"></p>
+  </div>
+  <div id="list"></div>
+  <div id="pane">
+    <div class="warn" id="model-note" style="display:none"></div>
+    <div id="message"></div>
+    <iframe id="frame" title="预审报告"></iframe>
+  </div>
+</div>
+
+<div id="gone" class="card"><h2 id="gone-title"></h2><p id="gone-text"></p></div>
+
+<script>
+(function () {
+  function $(id) { return document.getElementById(id); }
+  function show(id, on) { $(id).style.display = on ? "block" : "none"; }
+  function setText(node, value) { node.innerHTML = ""; node.appendChild(document.createTextNode(value)); }
+
+  var files = [];      // 选中或拖进来的文件：{name, text}
+  var jobs = [];       // 这一批要审的票：{name, text, state, result, seconds}
+  var selected = -1;
+  var modelState = "missing";
+  var timer = null;
+  var closed = false;
+
+  // 所有请求都发给这个页面自己所在的地址（本机），相对路径里已经带着这次运行的口令
+  function call(method, path, body, done) {
+    var xhr = new XMLHttpRequest();
+    xhr.open(method, path, true);
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState !== 4) { return; }
+      if (xhr.status === 0) { gone("票审已经关闭", "那个黑色的窗口被关掉了，或者程序已经退出。要继续用，请重新双击“票审.exe”。"); return; }
+      var data = null;
+      try { data = JSON.parse(xhr.responseText); } catch (e) { data = null; }
+      if (xhr.status !== 200 || data === null) { done({ok: false, error: xhr.responseText || ("程序返回了状态码 " + xhr.status)}); return; }
+      done(data);
+    };
+    if (body === null) { xhr.send(); } else { xhr.setRequestHeader("Content-Type", "application/json; charset=utf-8"); xhr.send(JSON.stringify(body)); }
+  }
+
+  function gone(title, text) {
+    if (closed) { return; }
+    closed = true;
+    if (timer) { clearInterval(timer); }
+    show("input", false); show("results", false); show("gone", true);
+    $("quit").style.display = "none";
+    setText($("gone-title"), title); setText($("gone-text"), text);
+  }
+
+  // ---------- 第 1 步：票面 ----------
+  function refreshGo() {
+    var count = files.length + ($("text").value.replace(/\s/g, "") ? 1 : 0);
+    $("go").disabled = count === 0;
+    setText($("go-hint"), count === 0 ? "先粘贴票面，或者选择文件。" : "共 " + count + " 张票。");
+  }
+
+  function drawFiles() {
+    var box = $("files");
+    box.innerHTML = "";
+    for (var i = 0; i < files.length; i++) {
+      var chip = document.createElement("span");
+      chip.className = "chip";
+      chip.appendChild(document.createTextNode(files[i].name));
+      var remove = document.createElement("button");
+      remove.type = "button";
+      remove.setAttribute("aria-label", "去掉 " + files[i].name);
+      remove.setAttribute("data-index", String(i));
+      remove.appendChild(document.createTextNode("×"));
+      remove.onclick = function () { files.splice(Number(this.getAttribute("data-index")), 1); drawFiles(); };
+      chip.appendChild(remove);
+      box.appendChild(chip);
+    }
+    refreshGo();
+  }
+
+  function fileError(text) { setText($("file-error"), text); show("file-error", text !== ""); }
+
+  // 记事本存的文件可能是 UTF-8，也可能是 ANSI（GBK）。先按 UTF-8 读，读出乱码再按 GBK 读。
+  function readFile(file, encoding) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      var text = String(reader.result);
+      if (encoding === "utf-8" && text.indexOf("�") >= 0) { readFile(file, "gbk"); return; }
+      if (text.charAt(0) === "﻿") { text = text.substring(1); }
+      if (!text.replace(/\s/g, "")) { fileError(file.name + " 是空的。"); return; }
+      files.push({name: file.name, text: text});
+      drawFiles();
+    };
+    reader.onerror = function () { fileError(file.name + " 读不出来。"); };
+    reader.readAsText(file, encoding);
+  }
+
+  function addFiles(list) {
+    fileError("");
+    for (var i = 0; i < list.length; i++) {
+      if (!/\.txt$/i.test(list[i].name)) {
+        fileError("“" + list[i].name + "”不是 .txt 文件。Word、Excel、PDF 现在还不能直接读：请打开它，全选、复制，粘贴到上面的框里。");
+        continue;
+      }
+      readFile(list[i], "utf-8");
+    }
+  }
+
+  $("pick").onclick = function () { $("picker").click(); };
+  $("picker").onchange = function () { addFiles(this.files); this.value = ""; };
+  $("text").onkeyup = refreshGo;
+  $("text").onchange = refreshGo;
+  $("text").onpaste = function () { setTimeout(refreshGo, 0); };
+  $("text").ondragover = function (event) { event.preventDefault(); this.className = "over"; };
+  $("text").ondragleave = function () { this.className = ""; };
+  $("text").ondrop = function (event) {
+    this.className = "";
+    if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length) {
+      event.preventDefault();
+      addFiles(event.dataTransfer.files);
+    } else { setTimeout(refreshGo, 0); }
+  };
+  // 文件没拖准、落在框外面时，不要让浏览器把这个页面换成那个文件
+  document.ondragover = function (event) { event.preventDefault(); };
+  document.ondrop = function (event) { event.preventDefault(); };
+
+  function drawExamples(list) {
+    if (!list.length) { return; }
+    show("examples-row", true);
+    for (var i = 0; i < list.length; i++) {
+      var link = document.createElement("a");
+      link.className = "example";
+      link.setAttribute("data-index", String(i));
+      link.appendChild(document.createTextNode(list[i].name.replace(/\.txt$/i, "")));
+      link.onclick = function () { $("text").value = list[Number(this.getAttribute("data-index"))].text; refreshGo(); $("text").scrollTop = 0; };
+      $("examples").appendChild(link);
+    }
+  }
+
+  // ---------- 第 2 步：模式 ----------
+  function radio(value) { return $("mode-" + value).getElementsByTagName("input")[0]; }
+  function mode() { return radio("model").checked ? "model" : "rule"; }
+  function choose(value) {
+    radio(value).checked = true;
+    $("mode-rule").className = "mode" + (value === "rule" ? " on" : "");
+    $("mode-model").className = "mode" + (modelState === "missing" ? " off" : value === "model" ? " on" : "");
+    try { localStorage.setItem("tg-mode", value); } catch (e) { /* 记不住上次的选择也不影响使用 */ }
+  }
+  radio("rule").onclick = function () { choose("rule"); };
+  radio("model").onclick = function () { choose("model"); };
+
+  function applyStatus(status) {
+    setText($("version"), "版本 " + status.version);
+    modelState = status.model;
+    var note = "";
+    if (status.model === "missing") { note = "这台电脑上用不了：" + status.model_note; }
+    if (status.model === "failed") { note = "上一次没有用成：" + status.model_note + "。可以再试，也可以先用规则模式。"; }
+    if (status.model === "ready") { note = "模型已经启动，现在不用再等。"; }
+    setText($("model-state"), note);
+    radio("model").disabled = status.model === "missing";
+    var last = null;
+    try { last = localStorage.getItem("tg-mode"); } catch (e) { last = null; }
+    choose(status.model === "missing" ? "rule" : last === "rule" ? "rule" : "model");
+  }
+
+  // ---------- 预审 ----------
+  function frameHeight() {
+    var top = $("bar").offsetHeight + document.querySelector(".top").offsetHeight;
+    var height = (window.innerHeight || document.documentElement.clientHeight) - top;
+    $("list").style.height = height + "px";
+    $("frame").style.height = (height - 16 - $("model-note").offsetHeight) + "px";
+  }
+  window.onresize = frameHeight;
+
+  function drawList() {
+    var box = $("list");
+    box.innerHTML = "";
+    for (var i = 0; i < jobs.length; i++) {
+      var job = jobs[i];
+      var item = document.createElement("div");
+      var level = job.state === "done" ? job.result.level : job.state === "failed" ? "failed" : "";
+      item.className = "item " + level + (i === selected ? " sel" : "");
+      item.setAttribute("data-index", String(i));
+      var title = document.createElement("b");
+      title.appendChild(document.createTextNode(job.name));
+      var line = document.createElement("span");
+      var text = "排队中";
+      if (job.state === "running") { text = "正在预审… " + job.seconds + " 秒"; }
+      if (job.state === "done") { text = job.result.headline; }
+      if (job.state === "failed") { text = "没能预审"; }
+      line.appendChild(document.createTextNode(text));
+      item.appendChild(title); item.appendChild(line);
+      item.onclick = function () { select(Number(this.getAttribute("data-index"))); };
+      box.appendChild(item);
+    }
+  }
+
+  function message(html) { $("message").innerHTML = html; show("message", true); show("frame", false); }
+
+  function select(index) {
+    selected = index;
+    var job = jobs[index];
+    $("open").style.display = job.state === "done" ? "" : "none";
+    setText($("saved"), job.state === "done" ? "报告已保存：" + job.result.saved : "");
+    if (job.state === "done") {
+      show("message", false); show("frame", true);
+      if ($("frame").getAttribute("data-shown") !== job.result.report) {
+        $("frame").setAttribute("data-shown", job.result.report);
+        $("frame").src = job.result.report;
+      }
+    } else if (job.state === "failed") {
+      $("frame").setAttribute("data-shown", "");
+      message("<h2>这张票没能预审</h2><p></p><p class='muted'>常见原因：粘贴的不是完整的票面（要从“编号”一直到表格结束）；或者这不是配电第一种工作票。</p>");
+      setText($("message").getElementsByTagName("p")[0], job.error);
+    } else {
+      $("frame").setAttribute("data-shown", "");
+      var waiting = mode() === "model" && modelState !== "ready"
+        ? "模型第一次启动要十几秒到一分钟，之后每张票十几秒。请稍等，不要关掉那个黑色的窗口。"
+        : "马上就好。";
+      message("<h2>正在预审…</h2><p class='muted'></p>");
+      setText($("message").getElementsByTagName("p")[0], waiting);
+    }
+    drawList();
+    frameHeight();
+  }
+
+  function runNext() {
+    var index = -1;
+    for (var i = 0; i < jobs.length; i++) { if (jobs[i].state === "waiting") { index = i; break; } }
+    if (index < 0) { clearInterval(timer); timer = null; $("again").disabled = false; return; }
+    var job = jobs[index];
+    job.state = "running";
+    job.seconds = 0;
+    if (selected < 0 || jobs[selected].state !== "done") { select(index); } else { drawList(); }
+    call("POST", "check", {name: job.name, text: job.text, mode: job.mode}, function (result) {
+      if (result.ok) {
+        job.state = "done"; job.result = result;
+        if (job.mode === "model") { modelState = result.model_note ? "failed" : "ready"; }
+        if (result.model_note) { setText($("model-note"), "模型没有用上，这张票只用了规则：" + result.model_note); show("model-note", true); }
+      } else { job.state = "failed"; job.error = result.error; }
+      if (selected === index || selected < 0) { select(index); } else { drawList(); }
+      runNext();
+    });
+  }
+
+  $("go").onclick = function () {
+    jobs = [];
+    var pasted = $("text").value;
+    if (pasted.replace(/\s/g, "")) { jobs.push({name: "粘贴的票面", text: pasted}); }
+    for (var i = 0; i < files.length; i++) { jobs.push({name: files[i].name, text: files[i].text}); }
+    for (var k = 0; k < jobs.length; k++) { jobs[k].state = "waiting"; jobs[k].mode = mode(); jobs[k].seconds = 0; }
+    selected = -1;
+    show("input", false); show("results", true); show("model-note", false);
+    $("again").disabled = true;
+    timer = setInterval(function () {
+      for (var j = 0; j < jobs.length; j++) { if (jobs[j].state === "running") { jobs[j].seconds += 1; } }
+      drawList();
+    }, 1000);
+    runNext();
+  };
+
+  $("again").onclick = function () {
+    files = []; $("text").value = ""; drawFiles(); fileError("");
+    $("frame").setAttribute("data-shown", ""); $("frame").src = "about:blank";
+    show("results", false); show("input", true);
+    call("GET", "status", null, function (status) { if (status.version) { applyStatus(status); } });
+  };
+  $("open").onclick = function () { if (selected >= 0 && jobs[selected].state === "done") { window.open(jobs[selected].result.report, "_blank"); } };
+
+  $("quit").onclick = function () {
+    call("POST", "quit", {}, function () {
+      gone("票审已退出", "可以关掉这个页面了。已经生成的报告还在“报告”文件夹里。要再用，重新双击“票审.exe”。");
+    });
+  };
+
+  call("GET", "status", null, function (status) {
+    if (!status.version) { gone("主界面没能启动", status.error || "请重新双击“票审.exe”。"); return; }
+    applyStatus(status);
+    refreshGo();
+  });
+  call("GET", "examples", null, function (list) { if (list && list.length) { drawExamples(list); } });
+})();
+</script>
+</body>
+</html>
