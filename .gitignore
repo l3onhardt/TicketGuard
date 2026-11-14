@@ -42,3 +42,28 @@ Thumbs.db
 
 # 自带工具链和依赖源码（沙箱构建用，体积大，可重新生成：tools/codex/make-toolchain.sh）
 .toolchain/
+
+# 本机配置、凭据和私钥：不得提交到公开仓库
+.env
+.env.*
+secrets/
+credentials/
+.ssh/
+.aws/
+id_rsa
+id_ed25519
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+
+# 原始资料及导出的文档、压缩包只留在本机
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.pdf
+*.zip
+*.7z
+*.rar
